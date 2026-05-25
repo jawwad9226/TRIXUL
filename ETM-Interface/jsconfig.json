@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "checkJs": false,
+    "allowJs": true
+  },
+  "include": ["src", "App.js"]
+}

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ETM 2-Column Preview</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --card: #1f2937;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --border: rgba(255, 255, 255, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Arial, Helvetica, sans-serif;
+        background:
+          radial-gradient(
+            circle at top,
+            rgba(56, 189, 248, 0.22),
+            transparent 30%
+          ),
+          linear-gradient(180deg, #0b1120 0%, #111827 100%);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .phone {
+        width: min(420px, 100%);
+        background: rgba(17, 24, 39, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+        padding: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .header {
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.8px;
+        margin-bottom: 8px;
+      }
+
+      h1 {
+        font-size: 22px;
+        margin: 0;
+        line-height: 1.2;
+      }
+
+      .subtext {
+        color: var(--muted);
+        margin: 8px 0 0;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        aspect-ratio: 1 / 1;
+        border-radius: 22px;
+        padding: 16px;
+        border: 1px solid var(--border);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.08),
+          rgba(255, 255, 255, 0.03)
+        );
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .card::before {
+        content: "";
+        position: absolute;
+        inset: auto -20% -35% auto;
+        width: 120px;
+        height: 120px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.12);
+        filter: blur(4px);
+      }
+
+      .icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.12);
+        font-size: 20px;
+      }
+
+      .label {
+        font-size: 16px;
+        font-weight: 700;
+        margin-top: 14px;
+        line-height: 1.2;
+        max-width: 10ch;
+      }
+
+      .desc {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        margin-top: 6px;
+      }
+
+      .footer {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      @media (max-width: 360px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="phone">
+      <div class="header">
+        <div class="eyebrow">Smart ETM</div>
+        <h1>Two-column option layout</h1>
+        <p class="subtext">
+          A simple square-grid preview of the ETM home options. This is only a
+          visual sample.
+        </p>
+      </div>
+
+      <section class="grid" aria-label="ETM options preview">
+        <div class="card">
+          <div>
+            <div class="icon">🛡️</div>
+            <div class="label">Initializer</div>
+            <div class="desc">Secure route setup</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">🎫</div>
+            <div class="label">Ticket Booking</div>
+            <div class="desc">Fare and passenger flow</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">🚌</div>
+            <div class="label">Bus Status</div>
+            <div class="desc">ETA and traffic updates</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">📍</div>
+            <div class="label">Location</div>
+            <div class="desc">Live GPS tracking</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">🚍</div>
+            <div class="label">Other Routes</div>
+            <div class="desc">Fleet overview</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">🔔</div>
+            <div class="label">Updates</div>
+            <div class="desc">Notices and tasks</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">🚨</div>
+            <div class="label">Emergency</div>
+            <div class="desc">Incident reporting</div>
+          </div>
+        </div>
+        <div class="card">
+          <div>
+            <div class="icon">🕘</div>
+            <div class="label">History</div>
+            <div class="desc">Saved ticket log</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        Square cards in 2 columns, with a simple mobile fallback to 1 column.
+      </div>
+    </main>
+  </body>
+</html>

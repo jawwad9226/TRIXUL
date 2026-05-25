@@ -1,0 +1,49 @@
+import React, { useEffect, useState } from "react";
+import { FlatList, StyleSheet, Text } from "react-native";
+
+import { EmptyState } from "../components/EmptyState";
+import { Screen } from "../components/Screen";
+import { colors, spacing } from "../constants/theme";
+import { storage } from "../services/storage";
+import { TicketTile } from "../components/TicketTile";
+
+export const TicketHistoryScreen = () => {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    storage
+      .load("@trixual/ticket-history", [])
+      .then(setHistory)
+      .catch(() => setHistory([]));
+  }, []);
+
+  return (
+    <Screen>
+      <Text style={styles.title}>Ticket History</Text>
+      <Text style={styles.subtitle}>
+        Locally cached printable tickets for audit and conductor review.
+      </Text>
+      {history.length ? (
+        <FlatList
+          data={history}
+          keyExtractor={(item) => item.ticketId}
+          renderItem={({ item }) => <TicketTile ticket={item} />}
+        />
+      ) : (
+        <EmptyState
+          title="No saved tickets yet"
+          subtitle="Completed bookings will appear here after printing or payment verification."
+        />
+      )}
+    </Screen>
+  );
+};
+
+const styles = StyleSheet.create({
+  title: { color: colors.light.text, fontSize: 24, fontWeight: "900" },
+  subtitle: {
+    color: colors.light.textMuted,
+    marginTop: 6,
+    marginBottom: spacing.lg,
+  },
+});
