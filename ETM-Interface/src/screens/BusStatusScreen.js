@@ -15,6 +15,7 @@ export const BusStatusScreen = () => {
   const status = useAppSelector((state) => state.bus.status);
 
   useEffect(() => {
+    // Refresh the live status now and then keep it current while the screen is open.
     dispatch(refreshBusStatus());
     const timer = setInterval(() => dispatch(refreshBusStatus()), 9000);
     return () => clearInterval(timer);
@@ -33,9 +34,10 @@ export const BusStatusScreen = () => {
         <StatusBadge
           label={status?.condition ?? "SYNCING"}
           tone={
+            // Zero-speed buses should be shown as stationary, not failing.
             status?.condition === "Moving"
               ? "success"
-              : status?.condition === "Stopped"
+              : status?.condition === "Stationary"
                 ? "warning"
                 : "warning"
           }
@@ -43,12 +45,12 @@ export const BusStatusScreen = () => {
       </View>
 
       <View style={styles.card}>
+        {/* Show the backend-derived bus summary that the dispatcher cares about. */}
         <View style={styles.row}>
           <View style={styles.metric}>
             <Text style={styles.metricValue}>{status?.currentStop ?? "—"}</Text>
             <Text style={styles.metricLabel}>Current stop</Text>
           </View>
-          <View style={styles.metric}>
           <View style={styles.metric}>
             <Text style={styles.metricValue}>{status?.nextStop ?? "—"}</Text>
             <Text style={styles.metricLabel}>Next stop</Text>
@@ -70,7 +72,9 @@ export const BusStatusScreen = () => {
         </View>
         <View style={styles.row}>
           <View style={styles.metric}>
-            <Text style={styles.metricValue}>{percentage(status?.progress ?? 0)}</Text>
+            <Text style={styles.metricValue}>
+              {percentage(status?.progress ?? 0)}
+            </Text>
             <Text style={styles.metricLabel}>Route progress</Text>
           </View>
           <View style={styles.metric}>
@@ -90,7 +94,7 @@ export const BusStatusScreen = () => {
           />
           <View style={{ flex: 1, marginLeft: spacing.md }}>
             <Text style={styles.trafficTitle}>
-              {status?.condition ?? "Clear"}
+              {status?.condition ?? "Stationary"}
             </Text>
             <Text style={styles.trafficText}>
               Conditions are derived from the last location sent by the bus.

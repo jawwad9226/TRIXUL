@@ -3,6 +3,8 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Seed route data stays in memory so the API can answer instantly without a database.
 const routeFareTable = [
   { id: "f1", from: "Jalgaon", to: "Kherda", price: 20 },
   { id: "f2", from: "Jalgaon", to: "Changefal", price: 22 },
@@ -75,6 +77,8 @@ const conductorData = {
   shift: "06:00 - 14:00",
   syncStatus: "online",
 };
+
+// Active buses are updated in place when a bus sends live GPS data.
 let activeBuses = [
   {
     busId: "BUS-101",
@@ -143,12 +147,16 @@ const updates = [
   },
 ];
 
+// Stores the latest GPS packet per bus, plus a history feed for other apps.
 const liveTelemetryByBusId = new Map();
+const liveTelemetryHistory = [];
 
+// Convert degrees to radians for the distance calculation below.
 function toRad(value) {
   return (value * Math.PI) / 180;
 }
 
+// Compute the distance between the bus and a stop so we can infer route progress.
 function distanceKm(a, b) {
   const earthRadiusKm = 6371;
   const deltaLat = toRad(b.latitude - a.latitude);
@@ -166,6 +174,7 @@ function distanceKm(a, b) {
   return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
+// Find the stop closest to the reported bus location.
 function getRouteProgressIndex(location) {
   let closestIndex = 0;
   let closestDistance = Number.POSITIVE_INFINITY;
@@ -181,6 +190,7 @@ function getRouteProgressIndex(location) {
   return { closestIndex, closestDistance };
 }
 
+// Convert a raw GPS point into the response shape used by the app and other clients.
 function buildTelemetrySummary(telemetry) {
   const location = {
     latitude: telemetry.latitude,
@@ -207,13 +217,14 @@ function buildTelemetrySummary(telemetry) {
     currentStop: currentStop ? currentStop.name : "Unknown",
     nextStop: nextStop ? nextStop.name : "Unknown",
     etaMinutes,
-    condition: speed > 0.1 ? "Moving" : "Stopped",
+    condition: speed > 0.1 ? "Moving" : "Stationary",
     progress: routeStops.length
       ? Math.round(((closestIndex + 1) / routeStops.length) * 100)
       : 0,
   };
 }
 
+// Refresh the active-bus list so other screens see the latest movement state.
 function upsertActiveBus(summary) {
   const existingIndex = activeBuses.findIndex(
     (bus) => bus.busId === summary.busId,
@@ -224,7 +235,7 @@ function upsertActiveBus(summary) {
     routeName: routeData.routeName,
     occupancy: activeBuses[existingIndex]?.occupancy ?? 0,
     currentStop: summary.currentStop,
-    status: summary.condition === "Moving" ? "Running" : "Stopped",
+    status: summary.condition === "Moving" ? "Running" : "Stationary",
     speed: summary.speed,
     lastReportedAt: summary.receivedAt,
   };
@@ -237,6 +248,7 @@ function upsertActiveBus(summary) {
   activeBuses = [nextEntry, ...activeBuses];
 }
 
+// Return the most recent telemetry snapshot for one bus, or the default bus if omitted.
 function getLatestTelemetry(busId) {
   const resolvedBusId = busId || conductorData.busId;
   const telemetry = liveTelemetryByBusId.get(resolvedBusId);
@@ -247,6 +259,7 @@ function getLatestTelemetry(busId) {
   return buildTelemetrySummary(telemetry);
 }
 
+// Normalizes the latest telemetry into the common JSON wrapper used by read endpoints.
 function sendTelemetryResponse(res, busId) {
   const telemetry = getLatestTelemetry(busId);
   if (!telemetry) {
@@ -255,13 +268,26 @@ function sendTelemetryResponse(res, busId) {
 
   return res.json({ ok: true, telemetry });
 }
-// Bind to 0.0.0.0 so devices on the same network (or emulator mappings) can reach the server.
+
+// Provide the shared history feed that other apps can use for reporting or dashboards.
+function getTelemetryHistory(busId) {
+  if (!busId) {
+    return liveTelemetryHistory.slice();
+  }
+
+  return liveTelemetryHistory.filter((entry) => entry.busId === busId);
+}
+// Bind to 0.0.0.0 so devices on the same network can reach the API.
 app.listen(3000, "0.0.0.0", () => {
   console.log("Listening on http://0.0.0.0:3000/");
 });
+
+// Health check for local testing and startup verification.
 app.get("/", (req, res) => {
   res.json({ message: "API is working fine" });
 });
+
+// Route payload used by the app's route, fare, and initializer flows.
 app.get("/routeData", (req, res) => {
   res.json({
     routeStops,
@@ -269,15 +295,43 @@ app.get("/routeData", (req, res) => {
     route: routeData,
   });
 });
+
+// Conductor profile is exposed separately so the interface can bootstrap it independently.
 app.get("/conductorData", (req, res) => {
   res.json({ conductor: conductorData });
 });
+
+// Bus status now comes from the latest live telemetry rather than random simulation.
 app.get("/busStatus", (req, res) => {
   sendTelemetryResponse(res, req.query.busId);
 });
+
+// Convenience endpoint for clients that only need the latest GPS snapshot.
 app.get("/busLocation/latest", (req, res) => {
   sendTelemetryResponse(res, req.query.busId);
 });
+
+// Shared location feed so other apps in the organization can read the history.
+app.get("/busLocation", (req, res) => {
+  res.json({
+    ok: true,
+    telemetry: getTelemetryHistory(req.query.busId),
+  });
+});
+
+// Single-bus lookup for consumers that need the current record by bus id.
+app.get("/busLocation/:busId", (req, res) => {
+  const telemetry = getLatestTelemetry(req.params.busId);
+  if (!telemetry) {
+    return res
+      .status(404)
+      .json({ ok: false, error: "Bus telemetry not found" });
+  }
+
+  return res.json({ ok: true, telemetry });
+});
+
+// Accept the live GPS report from the bus, store it, and update the active fleet view.
 app.post("/busLocation", (req, res) => {
   const busId =
     req.body && req.body.busId ? String(req.body.busId) : conductorData.busId;
@@ -304,14 +358,22 @@ app.post("/busLocation", (req, res) => {
   };
 
   liveTelemetryByBusId.set(busId, telemetry);
+  liveTelemetryHistory.push({
+    ...telemetry,
+    receivedAt: new Date().toISOString(),
+  });
   const summary = buildTelemetrySummary(telemetry);
   upsertActiveBus(summary);
 
   return res.json({ ok: true, telemetry: summary });
 });
+
+// Active fleet endpoint used by the dashboard and other operational screens.
 app.get("/activeBuses", (req, res) => {
   res.json(activeBuses);
 });
+
+// Updates feed for announcements, route changes, and task reminders.
 app.get("/updates", (req, res) => {
   res.json(updates);
 });

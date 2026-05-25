@@ -29,25 +29,30 @@ export const LocationScreen = () => {
     let active = true;
     let timer = null;
 
+    // Capture the live GPS position and send it to the backend.
     const captureAndSend = async () => {
+      // Skip duplicate in-flight reports and wait for a real bus id.
       if (!conductor?.busId || reportingRef.current) {
         return;
       }
 
       reportingRef.current = true;
       try {
+        // Ask for device GPS permission only when we need a live fix.
         const permission = await Location.requestForegroundPermissionsAsync();
         if (!active) {
           return;
         }
 
         if (permission.status !== "granted") {
+          // Tell the user why live reporting cannot continue.
           setPermissionMessage(
             "GPS permission is required to report live location.",
           );
           return;
         }
 
+        // Read the current device position and push it to the backend.
         const position = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
@@ -55,6 +60,7 @@ export const LocationScreen = () => {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         };
+        // Keep the store in sync so other screens use the same live GPS.
         dispatch(setGps(nextGps));
         await dispatch(
           submitBusLocation({
@@ -72,6 +78,7 @@ export const LocationScreen = () => {
         }
       } catch (error) {
         if (active) {
+          // Show the immediate read/send failure so the user knows what to fix.
           setPermissionMessage(
             error instanceof Error
               ? error.message
@@ -84,7 +91,9 @@ export const LocationScreen = () => {
     };
 
     captureAndSend();
+    // Re-send the live location every 30 seconds while the screen stays open.
     timer = setInterval(captureAndSend, 30000);
+    // Re-report immediately when the app returns to the foreground.
     const appStateSubscription = AppState.addEventListener(
       "change",
       (nextState) => {
@@ -139,9 +148,13 @@ export const LocationScreen = () => {
       </View>
 
       <View style={styles.card}>
+        {/* Present the current GPS point, sync status, and movement state together. */}
         <Text style={styles.label}>Current GPS location</Text>
         <Text style={styles.coords}>{locationLabel}</Text>
         <Text style={styles.meta}>Speed: {speed.toFixed(1)} m/s</Text>
+        <Text style={styles.meta}>
+          Movement: {speed > 0 ? "Moving" : "Stationary"}
+        </Text>
         <Text style={styles.meta}>Sync: {syncStatus}</Text>
         {locationTimestamp ? (
           <Text style={styles.meta}>Last report: {locationTimestamp}</Text>
