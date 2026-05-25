@@ -44,11 +44,7 @@ export const submitBusLocation = createAsyncThunk(
 const busSlice = createSlice({
   name: "bus",
   initialState,
-  reducers: {
-    setLocationProgress(state, action) {
-      state.locationProgress = action.payload;
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       // Track when the live status fetch is in progress.
@@ -120,5 +116,4 @@ const busSlice = createSlice({
   },
 });
 
-export const { setLocationProgress } = busSlice.actions;
 export default busSlice.reducer;

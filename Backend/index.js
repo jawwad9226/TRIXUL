@@ -370,10 +370,10 @@ app.post("/busLocation", (req, res) => {
 
 // Active fleet endpoint used by the dashboard and other operational screens.
 app.get("/activeBuses", (req, res) => {
-  res.json(activeBuses);
+  res.json({ activeBuses });
 });
 
 // Updates feed for announcements, route changes, and task reminders.
 app.get("/updates", (req, res) => {
-  res.json(updates);
+  res.json({ updates });
 });

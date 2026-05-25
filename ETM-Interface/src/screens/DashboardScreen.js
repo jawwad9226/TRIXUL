@@ -357,7 +357,7 @@ export const DashboardScreen = ({ navigation }) => {
             <View style={{ height: 12 }} />
             <Pressable
               onPress={async () => {
-                // simulate initializer flow: clear cache and force refresh on next boot
+                // Clear cached route data so the next load re-reads the live API.
                 try {
                   await mockApi.clearMockCache();
                   dispatch(setRefreshRequired(true));

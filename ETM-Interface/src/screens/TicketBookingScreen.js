@@ -43,7 +43,7 @@ export const TicketBookingScreen = () => {
 
   useEffect(() => {
     storage
-      .load("@trixual/ticket-history", [])
+      .loadTicketHistory([])
       .then((history) => dispatch(hydrateHistory(history)))
       .catch(() => null);
   }, [dispatch]);

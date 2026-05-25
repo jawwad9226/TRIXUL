@@ -57,7 +57,7 @@ Store slices and services
 - `src/store/slices/busSlice.js` — telemetry and active buses.
 - `src/store/slices/updateSlice.js` — updates list.
 - `src/store/slices/alertSlice.js` — emergency alerts.
-- `src/services/mockApi.js` — fake backend; adjust failure/delay here.
+- `src/services/mockApi.js` — live API adapter and local persistence bridge.
 - `src/services/storage.js` — AsyncStorage wrapper; persistence keys live here.
 
 How I can proceed (pick one)

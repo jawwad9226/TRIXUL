@@ -33,8 +33,16 @@ async function clearKey(key) {
 
 export const storage = {
   async appendTicket(ticket) {
-    const current = await storage.load(keys.ticketHistory, []);
+    const current = await loadValue(keys.ticketHistory, []);
     await saveValue(keys.ticketHistory, [ticket, ...current]);
+  },
+
+  async loadTicketHistory(fallback = []) {
+    return loadValue(keys.ticketHistory, fallback);
+  },
+
+  async clearTicketHistory() {
+    await clearKey(keys.ticketHistory);
   },
 
   async saveRouteDraft(draft) {

@@ -184,8 +184,3 @@ export async function fetchLiveBusStatus() {
 export async function fetchLatestBusLocation() {
   return fetchTelemetryAcrossBaseUrls("/busLocation/latest");
 }
-
-// Manually clear the offline queue when a user wants a fresh retry state.
-export async function clearQueuedBusTelemetry() {
-  await savePendingTelemetry([]);
-}

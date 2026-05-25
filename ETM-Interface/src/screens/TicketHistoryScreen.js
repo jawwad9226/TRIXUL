@@ -12,7 +12,7 @@ export const TicketHistoryScreen = () => {
 
   useEffect(() => {
     storage
-      .load("@trixual/ticket-history", [])
+      .loadTicketHistory([])
       .then(setHistory)
       .catch(() => setHistory([]));
   }, []);

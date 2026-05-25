@@ -1,4 +1,4 @@
-import { delay, seededId } from "../utils/mockHelpers";
+import { seededId } from "../utils/mockHelpers";
 import { initializerSecurityFlow } from "../constants/flow/security";
 import {
   loadActiveBusesData,
@@ -9,41 +9,29 @@ import {
 import { fetchLatestBusLocation, fetchLiveBusStatus } from "./busTelemetry";
 import { storage } from "./storage";
 
-const defaultOptions = {
-  // Adjust these values if you want faster or slower request behavior.
-  failureRate: 0.12,
-  minDelayMs: 1000,
-  maxDelayMs: 3000,
-  timeoutMs: 4200,
-};
-
 const resourceDefinitions = {
   routeData: {
     loadRemote: loadRouteData,
     loadCache: storage.loadRouteData,
     saveCache: storage.saveRouteData,
-    clearCache: storage.clearRouteData,
     errorLabel: "route data",
   },
   conductorData: {
     loadRemote: loadConductorData,
     loadCache: storage.loadConductorData,
     saveCache: storage.saveConductorData,
-    clearCache: storage.clearConductorData,
     errorLabel: "conductor data",
   },
   activeBuses: {
     loadRemote: loadActiveBusesData,
     loadCache: storage.loadActiveBuses,
     saveCache: storage.saveActiveBuses,
-    clearCache: storage.clearActiveBuses,
     errorLabel: "active buses",
   },
   updates: {
     loadRemote: loadUpdatesData,
     loadCache: storage.loadUpdates,
     saveCache: storage.saveUpdates,
-    clearCache: storage.clearUpdates,
     errorLabel: "updates",
   },
 };
@@ -123,14 +111,15 @@ async function warmAllResources() {
   return {
     ...routeData,
     conductor: conductorData,
-    activeBuses,
-    updates,
+    activeBuses: activeBuses.activeBuses,
+    updates: updates.updates,
   };
 }
 
 export const mockApi = {
   async fetchConductorProfile(options = {}) {
-    return getResourceData("conductorData", options);
+    const { conductor } = await getResourceData("conductorData", options);
+    return conductor;
   },
 
   async fetchRoute(options = {}) {
@@ -140,32 +129,20 @@ export const mockApi = {
 
   async verifyInitializerCode(code) {
     // Change the unlock code in `src/constants/flow/security.js`.
-    return request(
-      () => ({ valid: code === initializerSecurityFlow.verificationCode }),
-      {
-        failureRate: 0.04,
-        minDelayMs: 900,
-        maxDelayMs: 1500,
-      },
-    );
+    return request(() => ({
+      valid: code === initializerSecurityFlow.verificationCode,
+    }));
   },
 
   async submitTicketBooking(payload) {
-    return request(() => ({ ok: true, ticketId: payload.ticketId }), {
-      failureRate: 0.1,
-      minDelayMs: 1500,
-      maxDelayMs: 2600,
-    });
+    return request(() => ({ ok: true, ticketId: payload.ticketId }));
   },
 
   async verifyPayment(amount) {
-    return request(
-      () => ({
-        status: amount > 0 ? "success" : "failed",
-        referenceId: `PAY-${seededId("ref")}`,
-      }),
-      { failureRate: 0.08, minDelayMs: 1500, maxDelayMs: 2800 },
-    );
+    return request(() => ({
+      status: amount > 0 ? "success" : "failed",
+      referenceId: `PAY-${seededId("ref")}`,
+    }));
   },
 
   async fetchBusStatus() {
@@ -177,19 +154,17 @@ export const mockApi = {
   },
 
   async fetchActiveBuses() {
-    return getResourceData("activeBuses");
+    const { activeBuses } = await getResourceData("activeBuses");
+    return activeBuses;
   },
 
   async fetchUpdates() {
-    return getResourceData("updates");
+    const { updates } = await getResourceData("updates");
+    return updates;
   },
 
   async submitEmergencyAlert(alert) {
-    return request(() => ({ ok: true, alertId: alert.id }), {
-      failureRate: 0.08,
-      minDelayMs: 900,
-      maxDelayMs: 1900,
-    });
+    return request(() => ({ ok: true, alertId: alert.id }));
   },
 
   // Force reload of the underlying mock data source (clears cache)
@@ -213,20 +188,5 @@ export const mockApi = {
 };
 
 async function request(resolver, options = {}) {
-  const cfg = { ...defaultOptions, ...options };
-  const simulateDelay = delay(cfg.minDelayMs, cfg.maxDelayMs);
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Request timed out")), cfg.timeoutMs),
-  );
-
-  return Promise.race([
-    (async () => {
-      await simulateDelay;
-      if (Math.random() < cfg.failureRate) {
-        throw new Error("Mock server responded with an error. Please retry.");
-      }
-      return resolver();
-    })(),
-    timeout,
-  ]);
+  return Promise.resolve().then(() => resolver());
 }
