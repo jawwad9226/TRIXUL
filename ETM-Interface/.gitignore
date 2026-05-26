@@ -1,0 +1,9 @@
+node_modules
+.expo
+.expo-shared
+dist
+build
+.DS_Store
+.env
+.env.example
+*.log
