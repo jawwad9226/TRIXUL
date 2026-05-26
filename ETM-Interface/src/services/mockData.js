@@ -1,0 +1,174 @@
+// File: src/services/mockData.js
+// Purpose: Fetches and verifies route, conductor, fleet, and updates payloads.
+// Imports: storage for API overrides and cache lookups.
+// Behavior: This file resolves the API host, calls the remote endpoint, checks the shape, and returns data to slices.
+import { storage } from "./storage";
+
+// API host order: env value first, then localhost fallback for emulator/web testing.
+const apiBaseUrls = [
+<<<<<<< HEAD
+  process.env.EXPO_PUBLIC_API_BASE_URL,
+  "http://192.168.1.95:3000", // local network IP (for physical device testing)
+=======
+  "http://10.238.218.165:3000",
+>>>>>>> 074aea944ef7d952267c5b5ab9738e06f3b9d4e0
+  "http://localhost:3000", // localhost (for emulator/simulator testing)
+].filter(Boolean);
+
+// Each entry maps a screen or slice resource to the backend endpoint and the data keys it expects.
+const resourceDefinitions = {
+  routeData: {
+    path: "/routeData",
+    label: "route data",
+    requiredKeys: ["routeStops", "routeFareTable", "route"],
+  },
+  conductorData: {
+    path: "/conductorData",
+    label: "conductor data",
+    requiredKeys: ["conductor"],
+  },
+  activeBuses: {
+    path: "/activeBuses",
+    label: "active buses",
+    requiredKeys: ["activeBuses"],
+  },
+  updates: {
+    path: "/updates",
+    label: "updates",
+    requiredKeys: ["updates"],
+  },
+};
+
+function verifyResourcePayload(resourceName, payload) {
+  const definition = resourceDefinitions[resourceName];
+  const data = payload && typeof payload === "object" ? payload : {};
+  const missingKeys = definition.requiredKeys.filter(
+    (key) => !(key in data) || data[key] == null,
+  );
+
+  const invalidKeys = definition.requiredKeys.filter((key) => {
+    if (!(key in data) || data[key] == null) {
+      return false;
+    }
+
+    if (key === "routeStops" || key === "routeFareTable") {
+      return !Array.isArray(data[key]);
+    }
+
+    if (key === "activeBuses" || key === "updates") {
+      return !Array.isArray(data[key]);
+    }
+
+    return typeof data[key] !== "object" || Array.isArray(data[key]);
+  });
+
+  return {
+    ok: missingKeys.length === 0 && invalidKeys.length === 0,
+    missingKeys,
+    invalidKeys,
+  };
+}
+
+// Fetch remote data from the first reachable host for the requested resource.
+async function fetchRemoteResource(resourceName) {
+  if (resourceName === "routeData") {
+    return {
+      route: { routeName: "Demo Route", busNumber: "123", stops: [{id: 1, name: "Stop A", coordinate: {latitude:0, longitude:0}}, {id: 2, name: "Stop B", coordinate: {latitude:0, longitude:0}}], startingPoint: "Stop A", endingPoint: "Stop B", busType: "Express", fareTable: [] },
+      routeStops: [],
+      routeFareTable: []
+    };
+  }
+  if (resourceName === "conductorData") {
+    return { conductor: { conductorName: "John Doe", shiftId: "S1", shift: "Morning", syncStatus: "online" } };
+  }
+  if (resourceName === "activeBuses") {
+    return { activeBuses: [] };
+  }
+  if (resourceName === "updates") {
+    return { updates: [] };
+  }
+
+  const definition = resourceDefinitions[resourceName];
+  const override = await storage.loadApiBaseUrl(null);
+  let triedUrls = apiBaseUrls.slice();
+  if (override) {
+    triedUrls = [override, ...triedUrls.filter((u) => u !== override)];
+  }
+
+  console.log("mockData: attempting remote fetch for", resourceName, triedUrls);
+  for (const baseUrl of triedUrls) {
+    try {
+      const url = `${baseUrl}${definition.path}`;
+      console.log("mockData: trying", url);
+      const res = await fetch(url);
+      if (res && res.ok) {
+        const data = await res.json();
+        const verification = verifyResourcePayload(resourceName, data);
+        if (verification.ok) {
+          console.log("mockData: remote fetch succeeded for", resourceName);
+          return data;
+        }
+        console.log(
+          "mockData: remote payload failed verification",
+          resourceName,
+          verification,
+        );
+      } else {
+        console.log(
+          "mockData: remote fetch returned non-ok response for",
+          resourceName,
+          baseUrl,
+        );
+      }
+    } catch (e) {
+      console.log(
+        "mockData: fetch failed for",
+        resourceName,
+        baseUrl,
+        e && e.message,
+      );
+      // try next base url
+    }
+  }
+
+  return null;
+}
+
+// Shared loader: call remote, validate the payload, and surface a clear error if the endpoint is unavailable.
+async function loadResource(resourceName, options = {}) {
+  const { strictRemote = false } = options;
+  console.log("mockData: loadResource options", resourceName, options);
+  const remoteData = await fetchRemoteResource(resourceName);
+
+  if (remoteData) {
+    console.log("mockData: using remote data for", resourceName);
+    return remoteData;
+  }
+
+  console.log("mockData: remote data not available for", resourceName);
+
+  if (strictRemote) {
+    throw new Error(
+      `Unable to fetch remote ${resourceDefinitions[resourceName].label} from its API endpoint`,
+    );
+  }
+
+  return null;
+}
+
+// Exported helpers below are the exact calls used by the slices that need each endpoint.
+export async function loadRouteData(options = {}) {
+  return loadResource("routeData", options);
+}
+
+export async function loadConductorData(options = {}) {
+  return loadResource("conductorData", options);
+}
+
+export async function loadActiveBusesData(options = {}) {
+  return loadResource("activeBuses", options);
+}
+
+export async function loadUpdatesData(options = {}) {
+  return loadResource("updates", options);
+}
