@@ -1,3 +1,7 @@
+// File: src/constants/theme.js
+// Purpose: Central color, spacing, radius, shadow, and navigation theme values.
+// Imports: none.
+// Behavior: Visual changes ripple through every component that reads these tokens.
 export const colors = {
   light: {
     background: "#f4f7fb",

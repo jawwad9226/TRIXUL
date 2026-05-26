@@ -1,3 +1,7 @@
+// File: src/utils/gps.js
+// Purpose: Calculates distance and proximity checks for live GPS logic.
+// Imports: none.
+// Behavior: Screens use these helpers to decide when route editing is allowed.
 export const isNearPoint = (current, target, thresholdKm = 0.9) => {
   const km = distance(current, target);
   return km <= thresholdKm;

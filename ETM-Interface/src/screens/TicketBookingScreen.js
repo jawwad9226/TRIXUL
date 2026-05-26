@@ -1,3 +1,7 @@
+// File: src/screens/TicketBookingScreen.js
+// Purpose: Collects passenger details, calculates fare, and stores ticket history.
+// Imports: route state, ticket slice actions, storage, and fare helpers.
+// Behavior: Payment mode and route data decide whether booking can complete.
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -20,6 +24,7 @@ import { colors, radii, spacing } from "../constants/theme";
 import { storage } from "../services/storage";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
+  clearBookingStops,
   hydrateHistory,
   setPaymentMode,
   submitBooking,
@@ -287,9 +292,7 @@ export const TicketBookingScreen = () => {
           <PrimaryButton
             title="Clear Stops"
             tone="secondary"
-            onPress={() =>
-              dispatch(updateDraft({ boardingStop: "", destinationStop: "" }))
-            }
+            onPress={() => dispatch(clearBookingStops())}
           />
         </View>
 

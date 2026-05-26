@@ -1,3 +1,7 @@
+// File: src/store/slices/conductorSlice.js
+// Purpose: Stores conductor profile and sync state.
+// Imports: mock API for bootstrap loading.
+// Behavior: Screens and services read conductor identity from this slice.
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";

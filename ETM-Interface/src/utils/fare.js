@@ -1,3 +1,7 @@
+// File: src/utils/fare.js
+// Purpose: Calculates fare, stop pairs, and passenger totals from route data.
+// Imports: none at module load.
+// Behavior: Booking screens and ticket state rely on these derived values.
 // routeFareTable is provided by the active route payload; avoid importing mock data at module load
 
 export const normalizeStopPair = (boardingStop, destinationStop) => {

@@ -1,3 +1,7 @@
+// File: src/components/SectionHeader.js
+// Purpose: Renders a reusable title row for grouped screen sections.
+// Imports: theme colors and spacing.
+// Behavior: Optional action text gives screens a shared header interaction.
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 

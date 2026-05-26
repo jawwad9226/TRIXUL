@@ -1,3 +1,7 @@
+// File: src/store/slices/alertSlice.js
+// Purpose: Stores emergency alert submissions and recent alerts.
+// Imports: mock API and seeded id helper.
+// Behavior: Emergency reports are posted here and then surfaced in recent state.
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";

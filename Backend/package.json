@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "env": "node scripts/update-env.js",
+    "start:lan": "node scripts/update-env.js && nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon index.js"
   },

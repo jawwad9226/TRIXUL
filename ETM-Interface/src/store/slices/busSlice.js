@@ -1,3 +1,7 @@
+// File: src/store/slices/busSlice.js
+// Purpose: Tracks live bus status, active buses, and location feed state.
+// Imports: mock API and bus telemetry services.
+// Behavior: Dashboard and location screens read from this slice after refresh actions.
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";

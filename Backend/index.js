@@ -1,13 +1,59 @@
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
+
+// Load per-folder environment values before the server reads them.
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const contents = fs.readFileSync(filePath, "utf8");
+  contents
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .forEach((line) => {
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex <= 0) {
+        return;
+      }
+
+      const key = line.slice(0, separatorIndex).trim();
+      const value = line.slice(separatorIndex + 1).trim();
+      if (key && process.env[key] == null) {
+        process.env[key] = value;
+      }
+    });
+}
+
+loadEnvFile(path.join(__dirname, ".env"));
+
 const app = express();
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN || "*";
+const allowedOrigins =
+  corsOrigin === "*"
+    ? true
+    : corsOrigin
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
-// Seed route data stays in memory so the API can answer instantly without a database.
+const PORT = Number(process.env.PORT) || 3000;
+// File: index.js
+// Purpose: Hosts the ETM backend API, seed data, and live telemetry endpoints.
+// Imports: express, cors, and local environment values.
+// Behavior: Frontend and other clients read route, conductor, fleet, and bus-location data from here.
+const HOST = process.env.HOST || "0.0.0.0";
+
+// Seed route data stays in memory so route, fare, and initializer screens can bootstrap instantly.
 const routeFareTable = [
   { id: "f1", from: "Jalgaon", to: "Kherda", price: 20 },
-  { id: "f2", from: "Jalgaon", to: "Changefal", price: 22 },
+  { id: "f2", from: "Jalgaon", to: "Changefal", price: 25 },
   { id: "f3", from: "Jalgaon", to: "Nivana", price: 31 },
   { id: "f4", from: "Jalgaon", to: "Sangrampur", price: 36 },
   { id: "f5", from: "Kherda", to: "Changefal", price: 13 },
@@ -67,6 +113,7 @@ const routeData = {
   fareTable: routeFareTable,
   routeColor: "#0f62fe",
 };
+// Conductor data feeds the dashboard, initializer, and emergency flows.
 const conductorData = {
   id: "cond-1001",
   conductorName: "Harshal Patil",
@@ -78,7 +125,7 @@ const conductorData = {
   syncStatus: "online",
 };
 
-// Active buses are updated in place when a bus sends live GPS data.
+// Active buses are updated in place when live GPS reports arrive.
 let activeBuses = [
   {
     busId: "BUS-101",
@@ -147,7 +194,7 @@ const updates = [
   },
 ];
 
-// Stores the latest GPS packet per bus, plus a history feed for other apps.
+// Stores the latest GPS packet per bus, plus a history feed for other clients.
 const liveTelemetryByBusId = new Map();
 const liveTelemetryHistory = [];
 
@@ -224,7 +271,7 @@ function buildTelemetrySummary(telemetry) {
   };
 }
 
-// Refresh the active-bus list so other screens see the latest movement state.
+// Refresh the active-bus list so the dashboard and fleet screens stay in sync.
 function upsertActiveBus(summary) {
   const existingIndex = activeBuses.findIndex(
     (bus) => bus.busId === summary.busId,
@@ -277,9 +324,9 @@ function getTelemetryHistory(busId) {
 
   return liveTelemetryHistory.filter((entry) => entry.busId === busId);
 }
-// Bind to 0.0.0.0 so devices on the same network can reach the API.
-app.listen(3000, "0.0.0.0", () => {
-  console.log("Listening on http://0.0.0.0:3000/");
+// Bind to the configured host so LAN and emulator testing both work.
+app.listen(PORT, HOST, () => {
+  console.log(`Listening on http://${HOST}:${PORT}/`);
 });
 
 // Health check for local testing and startup verification.

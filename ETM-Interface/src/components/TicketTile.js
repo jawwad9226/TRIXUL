@@ -1,3 +1,7 @@
+// File: src/components/TicketTile.js
+// Purpose: Formats one saved ticket into a readable history card.
+// Imports: theme constants and time/currency format helpers.
+// Behavior: The tile stays read-only and reflects stored ticket data.
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 

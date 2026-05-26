@@ -1,3 +1,7 @@
+// File: src/screens/BusStatusScreen.js
+// Purpose: Shows live bus telemetry in a read-only status view.
+// Imports: bus state and refresh action.
+// Behavior: Mounting the screen triggers a refresh loop while the view is open.
 import React, { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";

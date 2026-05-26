@@ -1,3 +1,7 @@
+// File: App.js
+// Purpose: Bootstraps providers, theme wiring, and the root navigator.
+// Imports: store, theme constants, and RootNavigator.
+// Behavior: Changing this file changes the app shell for every screen.
 import "react-native-gesture-handler";
 
 import React from "react";

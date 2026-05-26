@@ -1,3 +1,7 @@
+// File: src/store/slices/updateSlice.js
+// Purpose: Stores announcements and update completion state.
+// Imports: mock API.
+// Behavior: The updates screen reads and marks items through this slice.
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";

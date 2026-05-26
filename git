@@ -1,9 +1,0 @@
-git init
-git remote add origin https://github.com/jawwad9226/TRIXUL/tree/main/etm-app
-git remote -v
-git fetch origin
-git branch -a
-git checkout -b Etm-Harsh-feature
-git add .
-git commit -m "Initial project submission"
-git push -u origin Etm-Harsh-feature

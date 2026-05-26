@@ -1,3 +1,7 @@
+// File: src/components/ProgressBar.js
+// Purpose: Displays a bounded progress bar for route and task completion.
+// Imports: theme colors and radii.
+// Behavior: The numeric prop becomes a visible fill width.
 import React from "react";
 import { StyleSheet, View } from "react-native";
 

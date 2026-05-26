@@ -1,3 +1,7 @@
+// File: src/screens/UpdatesScreen.js
+// Purpose: Shows announcements and lets staff mark tasks complete.
+// Imports: updates state and update actions.
+// Behavior: Refreshing the slice changes what items appear in the feed.
 import React, { useEffect } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -21,7 +25,7 @@ export const UpdatesScreen = () => {
   }, [dispatch]);
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <Text style={styles.title}>Updates</Text>
       <Text style={styles.subtitle}>
         Announcements, route changes, admin replies and conductor tasks with
@@ -31,6 +35,7 @@ export const UpdatesScreen = () => {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
+        style={styles.list}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardTop}>
@@ -82,6 +87,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: spacing.lg,
   },
+  list: { flex: 1 },
   card: {
     backgroundColor: colors.light.surface,
     borderRadius: radii.xl,

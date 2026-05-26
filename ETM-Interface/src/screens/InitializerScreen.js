@@ -1,3 +1,7 @@
+// File: src/screens/InitializerScreen.js
+// Purpose: Lets the conductor review and save route setup with verification.
+// Imports: route state, storage, verification API, and GPS helpers.
+// Behavior: Editing is only allowed when the bus is near the allowed points.
 import React, { useState } from "react";
 import { Alert, Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";

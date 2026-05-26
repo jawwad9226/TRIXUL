@@ -1,3 +1,7 @@
+// File: src/services/storage.js
+// Purpose: Wraps AsyncStorage keys and serialization for the app.
+// Imports: AsyncStorage only.
+// Behavior: Higher-level services and slices use this to persist local data.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const keys = {

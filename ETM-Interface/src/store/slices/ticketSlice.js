@@ -1,3 +1,7 @@
+// File: src/store/slices/ticketSlice.js
+// Purpose: Owns ticket booking draft state, payment state, and local history.
+// Imports: mock API, storage, and fare helpers.
+// Behavior: Booking screens dispatch here and receive the updated ticket state.
 import { createAsyncThunk, createSlice, nanoid } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";
@@ -84,6 +88,14 @@ const ticketSlice = createSlice({
       state.draft.paymentMode = action.payload;
       state.paymentStatus = "idle";
     },
+    clearBookingStops(state) {
+      state.draft.destinationStop = "";
+      state.draft.passengerCounts = { ...emptyCounts };
+      state.paymentStatus = "idle";
+      state.bookingStatus = "idle";
+      state.bookingError = null;
+      state.currentTicket = null;
+    },
     resetTicketState(state) {
       state.paymentStatus = "idle";
       state.bookingStatus = "idle";
@@ -128,6 +140,7 @@ export const {
   updateDraft,
   updatePassengerCounts,
   setPaymentMode,
+  clearBookingStops,
   resetTicketState,
   hydrateHistory,
 } = ticketSlice.actions;

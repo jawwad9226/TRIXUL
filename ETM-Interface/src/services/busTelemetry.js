@@ -1,3 +1,7 @@
+// File: src/services/busTelemetry.js
+// Purpose: Posts and fetches live bus location telemetry.
+// Imports: AsyncStorage and storage helpers.
+// Behavior: Queues offline reports and flushes them when the network returns.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { storage } from "./storage";
@@ -5,7 +9,6 @@ import { storage } from "./storage";
 const pendingTelemetryKey = "@trixual/pending-bus-location-updates";
 const apiBaseUrls = [
   process.env.EXPO_PUBLIC_API_BASE_URL,
-  "http://10.238.218.165:3000",
   "http://localhost:3000",
 ].filter(Boolean);
 

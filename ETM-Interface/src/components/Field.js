@@ -1,3 +1,7 @@
+// File: src/components/Field.js
+// Purpose: Shared labeled text-input block for form screens.
+// Imports: theme colors, radii, and spacing.
+// Behavior: Form screens use this component to keep input styling consistent.
 import React from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 

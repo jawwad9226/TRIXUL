@@ -1,3 +1,7 @@
+// File: src/screens/LocationScreen.js
+// Purpose: Captures GPS and pushes live bus location updates to the backend.
+// Imports: location API, route state, and bus telemetry actions.
+// Behavior: The screen keeps the store and backend in sync with each report.
 import React, { useEffect, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";

@@ -1,11 +1,16 @@
+// File: src/services/mockData.js
+// Purpose: Fetches and verifies route, conductor, fleet, and updates payloads.
+// Imports: storage for API overrides and cache lookups.
+// Behavior: This file resolves the API host, calls the remote endpoint, checks the shape, and returns data to slices.
 import { storage } from "./storage";
 
+// API host order: env value first, then localhost fallback for emulator/web testing.
 const apiBaseUrls = [
-  process.env.EXPO_PUBLIC_API_BASE_URL,
-  "http://10.238.218.165:3000", // local network IP (for physical device testing)
+  "http://10.238.218.165:3000",
   "http://localhost:3000", // localhost (for emulator/simulator testing)
 ].filter(Boolean);
 
+// Each entry maps a screen or slice resource to the backend endpoint and the data keys it expects.
 const resourceDefinitions = {
   routeData: {
     path: "/routeData",
@@ -59,6 +64,7 @@ function verifyResourcePayload(resourceName, payload) {
   };
 }
 
+// Fetch remote data from the first reachable host for the requested resource.
 async function fetchRemoteResource(resourceName) {
   const definition = resourceDefinitions[resourceName];
   const override = await storage.loadApiBaseUrl(null);
@@ -106,6 +112,7 @@ async function fetchRemoteResource(resourceName) {
   return null;
 }
 
+// Shared loader: call remote, validate the payload, and surface a clear error if the endpoint is unavailable.
 async function loadResource(resourceName, options = {}) {
   const { strictRemote = false } = options;
   console.log("mockData: loadResource options", resourceName, options);
@@ -127,6 +134,7 @@ async function loadResource(resourceName, options = {}) {
   return null;
 }
 
+// Exported helpers below are the exact calls used by the slices that need each endpoint.
 export async function loadRouteData(options = {}) {
   return loadResource("routeData", options);
 }

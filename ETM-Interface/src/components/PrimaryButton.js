@@ -1,3 +1,7 @@
+// File: src/components/PrimaryButton.js
+// Purpose: Shared primary action button with loading and disabled states.
+// Imports: theme constants.
+// Behavior: Caller-controlled props decide the button's action and tone.
 import React from "react";
 import {
   ActivityIndicator,

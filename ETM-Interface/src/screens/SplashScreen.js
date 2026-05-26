@@ -1,3 +1,7 @@
+// File: src/screens/SplashScreen.js
+// Purpose: Loads cached or remote boot data before sending users into the app.
+// Imports: bootstrap actions, animation, and theme constants.
+// Behavior: On success it resets navigation to Dashboard; on timeout it falls back to cache.
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,

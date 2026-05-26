@@ -1,68 +1,186 @@
-# Flow & Comment Guide
+# ETM Interface Flow Diagram
 
-This document lists the main screens, components, store slices, and services in the project, provides a short human-readable description for each, and includes a small header-comment template you can copy into any file.
+```mermaid
+graph TD
+	A[App.js\nBootstraps Provider, NavigationContainer, theme, and RootNavigator] --> B[RootNavigator.js\nReads appNavigationFlow and appScreenRegistry]
+	B --> C[appRegistry.js\nMaps route names to screen components]
 
-Why I split the flow instead of a single monolithic file
+	B --> D1[SplashScreen]
+	B --> D2[DashboardScreen]
+	B --> D3[InitializerScreen]
+	B --> D4[TicketBookingScreen]
+	B --> D5[BusStatusScreen]
+	B --> D6[LocationScreen]
+	B --> D7[OtherBusRoutesScreen]
+	B --> D8[UpdatesScreen]
+	B --> D9[EmergencyAlertScreen]
+	B --> D10[TicketHistoryScreen]
 
-- Single-file flow configs are easy to edit but create a large blast radius for small changes. Splitting concerns keeps:
-  - Navigation (startup route) in `src/constants/flow/navigation.js`
-  - Security/verification codes in `src/constants/flow/security.js`
-  - Visual labels in `src/constants/flow/labels.js`
-  - Screen/component registry in `src/navigation/appRegistry.js`
+	subgraph Shared_UI[Shared UI Components]
+		U1[Screen]
+		U2[AppCard]
+		U3[Field]
+		U4[PrimaryButton]
+		U5[ProgressBar]
+		U6[TicketTile]
+		U7[BusAnimation]
+		U8[MetricPill]
+		U9[StatusBadge]
+		U10[SectionHeader]
+		U11[EmptyState]
+	end
 
-  This separation makes it safe to change, for example, the verification code without touching navigation or screen wiring. It also helps code owners work in parallel and keeps runtime imports smaller.
+	subgraph Store[Redux Store]
+		S0[store/index.js\nCombines all slices]
+		S1[store/hooks.js\nuseAppDispatch and useAppSelector]
+		S2[conductorSlice]
+		S3[routeSlice]
+		S4[ticketSlice]
+		S5[busSlice]
+		S6[updateSlice]
+		S7[alertSlice]
+	end
 
-## Header comment template (copy into the top of a file)
+	subgraph Services[Services]
+		V1[mockApi.js\nRemote or cached data bridge]
+		V2[storage.js\nAsyncStorage wrapper]
+		V3[busTelemetry.js\nLive GPS transport]
+		V4[mockData.js\nRemote payload loader and verifier]
+	end
 
-// File: <path/to/file>
-// Purpose: One-line summary of what this file does.
-// Where to change: One-line where to edit behavior or key dependencies.
-// Flow: Which flow/config files affect this (e.g., `src/navigation/appRegistry.js`).
-// Tips: Short tip for maintainers.
+	subgraph Flow_Constants[Flow Constants]
+		F1[flow/navigation.js\nStartup route]
+		F2[flow/security.js\nInitializer verification code]
+		F3[flow/labels.js\nDisplay labels]
+	end
 
-Main files and quick notes
+	subgraph Theme_Utils[Theme and Utility Helpers]
+		T1[constants/theme.js\nColors, spacing, radii, shadows]
+		T2[utils/format.js\nCurrency, time, percentage]
+		T3[utils/fare.js\nFare and passenger calculation]
+		T4[utils/gps.js\nDistance and proximity]
+		T5[utils/mockHelpers.js\nSeeded id generation]
+	end
 
-- `src/navigation/appRegistry.js` — Single registry of screen names and components. Add new screens here first.
-- `src/navigation/RootNavigator.js` — Reads the registry and creates stack screens. Edit startup route in `src/constants/flow/navigation.js`.
-- `App.js` — App bootstrap: Provider, NavigationContainer, Theme wiring.
+	D1 --> S2
+	D1 --> S3
+	D1 --> U7
 
-Screens
+	D2 --> U2
+	D2 --> U8
+	D2 --> U9
+	D2 --> S1
+	D2 --> S2
+	D2 --> S3
+	D2 --> S5
+	D2 --> S6
+	D2 --> T2
 
-- `src/screens/SplashScreen.js` — bootstrap tasks, calls `bootstrapConductor` and `bootstrapRoute`.
-- `src/screens/DashboardScreen.js` — dashboard cards and telemetry summary.
-- `src/screens/InitializerScreen.js` — route editing; verification via `src/constants/flow/security.js`.
-- `src/screens/TicketBookingScreen.js` — ticket flow; fare logic in `src/utils/fare.js`.
-- `src/screens/BusStatusScreen.js` — current bus telemetry.
-- `src/screens/LocationScreen.js` — map/progression display.
-- `src/screens/OtherBusRoutesScreen.js` — other buses list.
-- `src/screens/UpdatesScreen.js` — admin/conductor updates.
-- `src/screens/EmergencyAlertScreen.js` — emergency submission.
-- `src/screens/TicketHistoryScreen.js` — local ticket list read from storage.
+	D3 --> S3
+	D3 --> S2
+	D3 --> V1
+	D3 --> F2
+	D3 --> T4
+	D3 --> U11
 
-Components
+	D4 --> S3
+	D4 --> S4
+	D4 --> V2
+	D4 --> T3
+	D4 --> T2
+	D4 --> U11
 
-- `src/components/Screen.js` — safe area + consistent background.
-- `src/components/AppCard.js` — dashboard card element.
-- `src/components/Field.js` — labeled input.
-- `src/components/PrimaryButton.js` — primary action button.
-- `src/components/ProgressBar.js` — route progress visuals.
-- `src/components/TicketTile.js` — ticket item in history.
-- `src/components/BusAnimation.js` — splash animation.
+	D5 --> S5
+	D5 --> U5
+	D5 --> U9
+	D5 --> T2
 
-Store slices and services
+	D6 --> S3
+	D6 --> S2
+	D6 --> S5
+	D6 --> V3
+	D6 --> T4
+	D6 --> U5
 
-- `src/store/slices/conductorSlice.js` — conductor profile bootstrap.
-- `src/store/slices/routeSlice.js` — current route and edits.
-- `src/store/slices/ticketSlice.js` — ticket drafts, booking, payments.
-- `src/store/slices/busSlice.js` — telemetry and active buses.
-- `src/store/slices/updateSlice.js` — updates list.
-- `src/store/slices/alertSlice.js` — emergency alerts.
-- `src/services/mockApi.js` — live API adapter and local persistence bridge.
-- `src/services/storage.js` — AsyncStorage wrapper; persistence keys live here.
+	D7 --> S5
+	D7 --> U9
 
-How I can proceed (pick one)
+	D8 --> S6
+	D8 --> U9
 
-- I can automatically insert this header template into every file listed above.
-- Or I can add the header only to a smaller subset you care most about (e.g., screens + slices).
+	D9 --> S7
+	D9 --> S2
+	D9 --> S3
+	D9 --> U4
+	D9 --> U9
 
-If you want me to apply the headers automatically, tell me to proceed and I'll add them to the files listed. If you'd rather add them manually, use the template above and paste it at the top of the target files.
+	D10 --> S4
+	D10 --> V2
+	D10 --> U6
+	D10 --> U11
+
+	S0 --> S2
+	S0 --> S3
+	S0 --> S4
+	S0 --> S5
+	S0 --> S6
+	S0 --> S7
+	S1 --> S0
+
+	S2 --> V1
+	S2 --> T5
+	S3 --> V1
+	S3 --> V2
+	S3 --> T4
+	S4 --> V1
+	S4 --> V2
+	S4 --> T3
+	S4 --> T2
+	S5 --> V1
+	S5 --> V3
+	S5 --> T2
+	S6 --> V1
+	S7 --> V1
+	S7 --> T5
+
+	V1 --> V2
+	V1 --> V4
+	V3 --> V2
+	V3 --> T4
+	V3 --> T5
+	V4 --> V2
+
+	F1 --> B
+	F2 --> D3
+	F3 --> C
+
+	T1 --> U1
+	T1 --> U2
+	T1 --> U3
+	T1 --> U4
+	T1 --> U5
+	T1 --> U6
+	T1 --> U7
+	T1 --> U8
+	T1 --> U9
+	T1 --> U10
+	T1 --> U11
+	T2 --> U6
+	T2 --> D2
+	T2 --> D4
+	T3 --> D4
+	T4 --> D3
+	T4 --> D6
+	T5 --> S7
+	T5 --> S4
+	T5 --> V1
+```
+
+## Reading Guide
+
+- `App.js` owns the bootstrap shell and points into the navigator.
+- `RootNavigator.js` consumes the registry and the startup route.
+- `appRegistry.js` is the route-to-screen handoff.
+- Screens consume shared UI components, store slices, services, and utility helpers.
+- Store slices call services and utilities, then expose state to screens.
+- The top-level `src` folder outside `ETM-Interface` is not part of this flow.

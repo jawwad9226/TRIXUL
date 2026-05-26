@@ -1,3 +1,7 @@
+// File: src/constants/flow/labels.js
+// Purpose: Holds user-facing labels that mirror route names.
+// Imports: none.
+// Behavior: Menus and docs can read these labels without touching screen logic.
 // Optional labels for future menus, docs, or admin controls.
 export const screenLabels = {
   Splash: "Splash",

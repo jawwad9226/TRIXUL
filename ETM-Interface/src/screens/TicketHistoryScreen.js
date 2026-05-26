@@ -1,3 +1,7 @@
+// File: src/screens/TicketHistoryScreen.js
+// Purpose: Reads locally saved tickets for review and audit.
+// Imports: storage plus shared empty-state and ticket UI components.
+// Behavior: The screen only reflects stored history and does not modify it.
 import React, { useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text } from "react-native";
 
@@ -18,7 +22,7 @@ export const TicketHistoryScreen = () => {
   }, []);
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <Text style={styles.title}>Ticket History</Text>
       <Text style={styles.subtitle}>
         Locally cached printable tickets for audit and conductor review.
@@ -27,6 +31,7 @@ export const TicketHistoryScreen = () => {
         <FlatList
           data={history}
           keyExtractor={(item) => item.ticketId}
+          style={styles.list}
           renderItem={({ item }) => <TicketTile ticket={item} />}
         />
       ) : (
@@ -46,4 +51,5 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: spacing.lg,
   },
+  list: { flex: 1 },
 });

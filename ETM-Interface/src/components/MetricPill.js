@@ -1,3 +1,7 @@
+// File: src/components/MetricPill.js
+// Purpose: Displays one dashboard metric with a tone-specific background.
+// Imports: theme constants.
+// Behavior: The caller decides which metric and value are shown.
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 

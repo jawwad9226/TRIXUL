@@ -1,3 +1,7 @@
+// File: src/navigation/RootNavigator.js
+// Purpose: Converts the screen registry into the app's stack navigator.
+// Imports: appNavigationFlow and appScreenRegistry.
+// Behavior: Registry changes alter routes; flow changes alter the startup screen.
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 

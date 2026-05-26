@@ -1,3 +1,7 @@
+// File: src/components/StatusBadge.js
+// Purpose: Converts a status label into a color-coded badge.
+// Imports: theme constants.
+// Behavior: The tone prop changes the badge color without affecting state.
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 

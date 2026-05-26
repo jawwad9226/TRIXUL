@@ -1,3 +1,7 @@
+// File: src/store/slices/routeSlice.js
+// Purpose: Owns route data, GPS state, and route-edit flags.
+// Imports: mock API for bootstrap loading.
+// Behavior: Screens read route state from here and dispatch edits back here.
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";

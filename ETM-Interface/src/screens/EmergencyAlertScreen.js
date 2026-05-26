@@ -1,3 +1,7 @@
+// File: src/screens/EmergencyAlertScreen.js
+// Purpose: Submits urgent alerts with bus and GPS context.
+// Imports: alert slice, conductor profile, route GPS, and form helpers.
+// Behavior: Submit either posts the alert or shows why the report failed.
 import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";

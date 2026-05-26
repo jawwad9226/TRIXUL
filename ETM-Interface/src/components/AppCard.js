@@ -1,3 +1,7 @@
+// File: src/components/AppCard.js
+// Purpose: Renders the dashboard tile that routes users into screens.
+// Imports: theme constants and the gradient background.
+// Behavior: Pressing the card triggers navigation supplied by the caller.
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -49,6 +53,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: spacing.md,
   },
-  subtitle: { color: "#f1f5ff", marginTop: spacing.xs, lineHeight: 17, fontSize: 12 },
+  subtitle: {
+    color: "#f1f5ff",
+    marginTop: spacing.xs,
+    lineHeight: 17,
+    fontSize: 12,
+  },
   footer: { marginTop: spacing.md },
 });

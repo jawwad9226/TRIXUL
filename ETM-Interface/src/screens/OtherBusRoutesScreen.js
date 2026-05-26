@@ -1,3 +1,7 @@
+// File: src/screens/OtherBusRoutesScreen.js
+// Purpose: Lists other active buses and filters them locally.
+// Imports: bus state and the refresh action.
+// Behavior: This screen behaves like a live fleet browser, not an editor.
 import React, { useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -26,7 +30,7 @@ export const OtherBusRoutesScreen = () => {
   );
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <Text style={styles.title}>Other Bus Routes</Text>
       <Text style={styles.subtitle}>
         Track active fleet vehicles, search by bus number or route, and monitor
@@ -43,6 +47,7 @@ export const OtherBusRoutesScreen = () => {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.busId}
+        style={styles.list}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardTop}>
@@ -96,6 +101,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: spacing.lg,
   },
+  list: { flex: 1 },
   search: {
     backgroundColor: colors.light.surface,
     borderRadius: radii.md,

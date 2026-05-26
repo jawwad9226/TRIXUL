@@ -4,9 +4,14 @@
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
+    "env": "node scripts/update-env.js",
+    "start:lan": "node scripts/update-env.js && expo start",
     "start": "expo start",
+    "android:lan": "node scripts/update-env.js && expo start --android",
     "android": "expo start --android",
+    "ios:lan": "node scripts/update-env.js && expo start --ios",
     "ios": "expo start --ios",
+    "web:lan": "node scripts/update-env.js && expo start --web",
     "web": "expo start --web"
   },
   "dependencies": {

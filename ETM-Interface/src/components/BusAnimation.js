@@ -1,3 +1,7 @@
+// File: src/components/BusAnimation.js
+// Purpose: Shows the animated bus signal on the splash screen.
+// Imports: animation primitives, icon set, and theme colors.
+// Behavior: Runs a looped animation until the splash flow ends.
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";

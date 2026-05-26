@@ -1,3 +1,7 @@
+// File: src/utils/format.js
+// Purpose: Formats currency, time, and percentage values for the UI.
+// Imports: none.
+// Behavior: Shared text formatting stays consistent across screens.
 export const currency = (value) => `₹${value.toFixed(2)}`;
 
 export const timeLabel = (value) => {

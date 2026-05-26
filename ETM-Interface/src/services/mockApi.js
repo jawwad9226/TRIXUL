@@ -1,3 +1,7 @@
+// File: src/services/mockApi.js
+// Purpose: Chooses between live backend data and local cache for the app.
+// Imports: route/conductor/data loaders, telemetry services, and storage.
+// Behavior: Screens never call it directly; slices use it to fetch data.
 import { seededId } from "../utils/mockHelpers";
 import { initializerSecurityFlow } from "../constants/flow/security";
 import {

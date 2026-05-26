@@ -1,3 +1,7 @@
+// File: src/navigation/appRegistry.js
+// Purpose: Central map between route names and screen components.
+// Imports: Every screen component listed in this registry.
+// Behavior: Navigation uses this file to decide what screen name opens which UI.
 import { DashboardScreen } from "../screens/DashboardScreen";
 import { SplashScreen } from "../screens/SplashScreen";
 import { InitializerScreen } from "../screens/InitializerScreen";
