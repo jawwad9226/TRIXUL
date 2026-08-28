@@ -1,8 +1,4 @@
-// File: src/screens/BusStatusScreen.js
-// Purpose: Shows live bus telemetry in a read-only status view.
-// Imports: bus state and refresh action.
-// Behavior: Mounting the screen triggers a refresh loop while the view is open.
-import React, { useEffect } from "react";
+import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -10,20 +6,13 @@ import { ProgressBar } from "../components/ProgressBar";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
-import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { refreshBusStatus } from "../store/slices/busSlice";
+import { useAppSelector } from "../store/hooks";
 import { percentage } from "../utils/format";
 
 export const BusStatusScreen = () => {
-  const dispatch = useAppDispatch();
+  // Status is populated in Redux when the conductor sends live telemetry
+  // from the Dashboard. No polling needed — it reflects the last heartbeat.
   const status = useAppSelector((state) => state.bus.status);
-
-  useEffect(() => {
-    // Refresh the live status now and then keep it current while the screen is open.
-    dispatch(refreshBusStatus());
-    const timer = setInterval(() => dispatch(refreshBusStatus()), 9000);
-    return () => clearInterval(timer);
-  }, [dispatch]);
 
   return (
     <Screen>
@@ -36,76 +25,76 @@ export const BusStatusScreen = () => {
           </Text>
         </View>
         <StatusBadge
-          label={status?.condition ?? "SYNCING"}
+          label={status?.condition ?? "AWAITING"}
           tone={
-            // Zero-speed buses should be shown as stationary, not failing.
             status?.condition === "Moving"
               ? "success"
               : status?.condition === "Stationary"
                 ? "warning"
-                : "warning"
+                : "info"
           }
         />
       </View>
 
-      <View style={styles.card}>
-        {/* Show the backend-derived bus summary that the dispatcher cares about. */}
-        <View style={styles.row}>
-          <View style={styles.metric}>
-            <Text style={styles.metricValue}>{status?.currentStop ?? "—"}</Text>
-            <Text style={styles.metricLabel}>Current stop</Text>
-          </View>
-          <View style={styles.metric}>
-            <Text style={styles.metricValue}>{status?.nextStop ?? "—"}</Text>
-            <Text style={styles.metricLabel}>Next stop</Text>
-          </View>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.metric}>
-            <Text style={styles.metricValue}>
-              {status?.etaMinutes ?? "--"} min
-            </Text>
-            <Text style={styles.metricLabel}>ETA</Text>
-          </View>
-          <View style={styles.metric}>
-            <Text style={styles.metricValue}>
-              {status?.speed != null ? `${status.speed.toFixed(1)} m/s` : "—"}
-            </Text>
-            <Text style={styles.metricLabel}>Current speed</Text>
-          </View>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.metric}>
-            <Text style={styles.metricValue}>
-              {percentage(status?.progress ?? 0)}
-            </Text>
-            <Text style={styles.metricLabel}>Route progress</Text>
-          </View>
-          <View style={styles.metric}>
-            <Text style={styles.metricValue}>{status?.condition ?? "—"}</Text>
-            <Text style={styles.metricLabel}>Telemetry state</Text>
-          </View>
-        </View>
-        <View style={styles.progressBlock}>
-          <Text style={styles.label}>Route progress visualization</Text>
-          <ProgressBar progress={status?.progress ?? 0} />
-        </View>
-        <View style={styles.trafficCard}>
+      {!status ? (
+        <View style={styles.emptyCard}>
           <MaterialCommunityIcons
-            name="traffic-light"
-            size={28}
-            color={colors.light.primary}
+            name="bus-clock"
+            size={48}
+            color={colors.light.textMuted}
           />
-          <View style={{ flex: 1, marginLeft: spacing.md }}>
-            <Text style={styles.trafficTitle}>
-              {status?.condition ?? "Stationary"}
-            </Text>
-            <Text style={styles.trafficText}>
-              Conditions are derived from the last location sent by the bus.
-            </Text>
+          <Text style={styles.emptyTitle}>No telemetry yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Go to the Dashboard and press "Send Live Telemetry" to populate
+            this screen with real data from the backend.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.metric}>
+              {/* Backend returns snake_case: current_stop */}
+              <Text style={styles.metricValue}>{status.current_stop ?? "—"}</Text>
+              <Text style={styles.metricLabel}>Current stop</Text>
+            </View>
+            <View style={styles.metric}>
+              {/* Backend returns snake_case: next_stop */}
+              <Text style={styles.metricValue}>{status.next_stop ?? "—"}</Text>
+              <Text style={styles.metricLabel}>Next stop</Text>
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={styles.metric}>
+              {/* Backend returns snake_case: eta_minutes */}
+              <Text style={styles.metricValue}>
+                {status.eta_minutes ?? "--"} min
+              </Text>
+              <Text style={styles.metricLabel}>ETA to next stop</Text>
+            </View>
+            <View style={styles.metric}>
+              <Text style={styles.metricValue}>
+                {status.speed != null ? `${Number(status.speed).toFixed(1)} km/h` : "—"}
+              </Text>
+              <Text style={styles.metricLabel}>Current speed</Text>
+            </View>
+          </View>
+          <View style={styles.trafficCard}>
+            <MaterialCommunityIcons
+              name="traffic-light"
+              size={28}
+              color={colors.light.primary}
+            />
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
+              <Text style={styles.trafficTitle}>
+                {status.condition ?? "Stationary"}
+              </Text>
+              <Text style={styles.trafficText}>
+                Conditions are derived from the last location sent by the bus.
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
+      )}
     </Screen>
   );
 };
@@ -119,6 +108,19 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.light.text, fontSize: 24, fontWeight: "900" },
   subtitle: { color: colors.light.textMuted, marginTop: 6, maxWidth: 680 },
+  emptyCard: {
+    backgroundColor: colors.light.surface,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  emptyTitle: { color: colors.light.text, fontWeight: "800", fontSize: 18 },
+  emptySubtitle: {
+    color: colors.light.textMuted,
+    textAlign: "center",
+    lineHeight: 20,
+  },
   card: {
     backgroundColor: colors.light.surface,
     borderRadius: radii.xl,
@@ -139,14 +141,13 @@ const styles = StyleSheet.create({
   },
   metricValue: { color: colors.light.text, fontSize: 20, fontWeight: "900" },
   metricLabel: { color: colors.light.textMuted, marginTop: 6 },
-  progressBlock: { marginVertical: spacing.lg },
-  label: { color: colors.light.text, marginBottom: 8, fontWeight: "700" },
   trafficCard: {
     flexDirection: "row",
     padding: spacing.lg,
     borderRadius: radii.lg,
     backgroundColor: "#eef4ff",
     alignItems: "center",
+    marginTop: spacing.md,
   },
   trafficTitle: { color: colors.light.text, fontWeight: "800" },
   trafficText: { color: colors.light.textMuted, marginTop: 4 },

@@ -1,11 +1,8 @@
-// File: src/screens/EmergencyAlertScreen.js
-// Purpose: Submits urgent alerts with bus and GPS context.
-// Imports: alert slice, conductor profile, route GPS, and form helpers.
-// Behavior: Submit either posts the alert or shows why the report failed.
 import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import * as Location from "expo-location";
 
 import { EmptyState } from "../components/EmptyState";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -13,48 +10,76 @@ import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { submitEmergency } from "../store/slices/alertSlice";
+import { submitEmergencyLocally } from "../store/slices/alertSlice";
 
 export const EmergencyAlertScreen = () => {
   const dispatch = useAppDispatch();
-  const bus = useAppSelector((state) => state.conductor.profile);
-  const gps = useAppSelector((state) => state.route.currentGps);
+  const conductorProfile = useAppSelector((state) => state.conductor.profile);
   const submitting = useAppSelector((state) => state.alerts.submitting);
   const [alertType, setAlertType] = useState("Accident");
   const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const submit = async () => {
-    if (!bus) {
+    if (!conductorProfile) {
+      Alert.alert("Not initialized", "Please complete the initialization flow first.");
       return;
     }
+
+    setIsSending(true);
     try {
-      await dispatch(
-        submitEmergency({
-          alertType,
-          message,
-          busId: bus.busId,
-          gpsLocation: gps,
-        }),
-      ).unwrap();
+      // Attempt to get live GPS for context — gracefully handle denial
+      let gpsLocation = { latitude: null, longitude: null };
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status === "granted") {
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Low,
+          });
+          gpsLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+        }
+      } catch (gpsError) {
+        // GPS not available — still send the alert without coordinates
+      }
+
+      const alertRecord = {
+        id: `ALERT-${Date.now()}`,
+        alertType,
+        message,
+        busId: conductorProfile.busId ?? "unknown",
+        conductorId: conductorProfile.conductorId,
+        gpsLocation,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Store locally and dispatch to Redux state
+      // TODO: POST to backend emergency endpoint when available
+      dispatch(submitEmergencyLocally(alertRecord));
+
       Alert.alert(
-        "Alert sent",
-        "Emergency support has been notified with GPS data.",
+        "Alert recorded",
+        "Emergency has been logged locally. Connect to backend for live dispatch."
       );
       setMessage("");
     } catch (error) {
       Alert.alert(
         "Submission failed",
-        error instanceof Error ? error.message : "Unknown error",
+        error instanceof Error ? error.message : "Unknown error"
       );
+    } finally {
+      setIsSending(false);
     }
   };
 
-  if (!bus) {
+  if (!conductorProfile) {
     return (
       <Screen>
         <EmptyState
-          title="Bus profile unavailable"
-          subtitle="Emergency reporting needs conductor and bus data to be ready."
+          title="Not initialized"
+          subtitle="Run the Initializer to set up your conductor profile before reporting emergencies."
         />
       </Screen>
     );
@@ -91,6 +116,7 @@ export const EmergencyAlertScreen = () => {
             ))}
           </Picker>
         </View>
+
         <Text style={styles.label}>Message</Text>
         <TextInput
           value={message}
@@ -108,15 +134,16 @@ export const EmergencyAlertScreen = () => {
             color={colors.light.primary}
           />
           <Text style={styles.infoText}>
-            Bus {bus.busId} • GPS {gps.latitude.toFixed(4)},{" "}
-            {gps.longitude.toFixed(4)}
+            Conductor: {conductorProfile.conductorName ?? "—"}
+            {conductorProfile.busId ? ` • Bus ${conductorProfile.busId}` : ""}
           </Text>
         </View>
 
         <PrimaryButton
-          title="Send Emergency Alert"
+          title={isSending ? "Sending..." : "Send Emergency Alert"}
           onPress={submit}
-          loading={submitting}
+          loading={isSending}
+          disabled={isSending || !message.trim()}
         />
       </View>
     </Screen>

@@ -96,11 +96,8 @@ class TelemetryService:
         # ).order_by('distance').first()
 
         return {
-            "status": "success",
-            "current_stop": "Jalgaon", # Placeholder for actual calculation
-            "next_stop": "Kherda",     # Placeholder for actual calculation
-            "eta_minutes": 12,         # Placeholder for actual calculation
-            "condition": "Moving" if speed > 0 else "Stopped"
+            "status": "telemetry_received",
+            "processed": True
         }
 
 class TicketingService:

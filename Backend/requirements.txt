@@ -1,6 +1,30 @@
+# ============================================================
+# TRIXUL Backend — Python Dependencies
+# ============================================================
+# Windows Users: Before running pip install, you MUST install
+# the OSGeo4W or GDAL binaries for GeoDjango to work.
+# Download: https://trac.osgeo.org/osgeo4w/
+# Then add to PATH: C:\OSGeo4W\bin
+# ============================================================
+
+# Core Django
 Django>=4.2,<5.0
-djangorestframework>=3.14.0
+
+# GeoDjango spatial support (requires GDAL at OS level)
+# psycopg2-binary includes PostGIS driver support
 psycopg2-binary>=2.9.9
+
+# Django REST Framework
+djangorestframework>=3.14.0
+
+# JWT Authentication
 djangorestframework-simplejwt>=5.3.0
-redis>=5.0.0
+
+# CORS headers (allows React Native app to call the API)
 django-cors-headers>=4.3.0
+
+# Redis cache client
+redis>=5.0.0
+
+# Load .env files into Django settings (required for secure config)
+python-dotenv>=1.0.0

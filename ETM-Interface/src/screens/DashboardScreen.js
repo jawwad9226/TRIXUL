@@ -1,20 +1,7 @@
 import React, { useEffect, useState } from "react";
-<<<<<<< HEAD
 import { FlatList, Pressable, StyleSheet, Text, View, Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-=======
-import {
-  FlatList,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
->>>>>>> 074aea944ef7d952267c5b5ab9738e06f3b9d4e0
 
 import { AppCard } from "../components/AppCard";
 import { MetricPill } from "../components/MetricPill";
@@ -23,30 +10,9 @@ import { SectionHeader } from "../components/SectionHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-<<<<<<< HEAD
 import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
 import { currency } from "../utils/format";
 import { sendHeartbeat } from "../services/api";
-=======
-import {
-  refreshActiveBuses,
-  refreshBusStatus,
-  refreshLocationFeed,
-} from "../store/slices/busSlice";
-import { refreshUpdates } from "../store/slices/updateSlice";
-import {
-  bootstrapRoute,
-  setRoute,
-  setRefreshRequired,
-} from "../store/slices/routeSlice";
-import { currency } from "../utils/format";
-import {
-  lastMockDataSource,
-  lastMockDataTime,
-  mockApi,
-} from "../services/mockApi";
-import { storage } from "../services/storage";
->>>>>>> 074aea944ef7d952267c5b5ab9738e06f3b9d4e0
 
 const cards = [
   {
@@ -142,44 +108,13 @@ export const DashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-<<<<<<< HEAD
     // Basic loading logic based on route/profile existence
     if (profile && route) {
-=======
-    dispatch(refreshBusStatus());
-    dispatch(refreshActiveBuses());
-    dispatch(refreshLocationFeed());
-    dispatch(refreshUpdates());
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (!route && !refreshRequired) {
-      dispatch(bootstrapRoute());
-    }
-  }, [dispatch, route, refreshRequired]);
-
-  useEffect(() => {
-    if (refreshRequired && !route) {
-      setLoading(true);
-      return;
-    }
-
-    const hasProfile = Boolean(profile && Object.keys(profile).length > 0);
-    const hasRouteInfo = Boolean(
-      route &&
-      (route.routeName ||
-        route.busNumber ||
-        (route.stops && route.stops.length > 0)),
-    );
-
-    if (hasProfile && hasRouteInfo) {
->>>>>>> 074aea944ef7d952267c5b5ab9738e06f3b9d4e0
       setLoading(false);
     } else {
       const fallback = setTimeout(() => setLoading(false), 3000);
       return () => clearTimeout(fallback);
     }
-<<<<<<< HEAD
   }, [profile, route]);
 
   const columns = 2;
@@ -263,143 +198,10 @@ export const DashboardScreen = ({ navigation }) => {
               </Text>
             </View>
             <StatusBadge label="ONLINE" tone="success" />
-=======
-
-    const fallback = setTimeout(() => setLoading(false), 3000);
-    return () => clearTimeout(fallback);
-  }, [profile, route, refreshRequired]);
-
-  const columns = 2;
-
-  const header = loading ? (
-    <>
-      <View style={[styles.hero, styles.skeletonBox]} />
-      <View style={styles.metricsRow}>
-        <View style={styles.skeletonPill} />
-        <View style={styles.skeletonPill} />
-        <View style={styles.skeletonPill} />
-      </View>
-      <SectionHeader title="Operations" />
-    </>
-  ) : (
-    <>
-      <View style={styles.hero}>
-        <View>
-          <Text style={styles.kicker}>Smart ETM Command Center</Text>
-          <Text style={styles.title}>
-            {profile?.conductorName ?? "Conductor"} on{" "}
-            {route?.busNumber ?? "Bus"}
-          </Text>
-          <Text style={styles.subtitle}>
-            {route?.routeName ?? "Loading route data"} •{" "}
-            {profile?.shift ?? "Shift sync pending"}
-          </Text>
-        </View>
-        <StatusBadge
-          label={profile?.syncStatus?.toUpperCase() ?? "SYNCING"}
-          tone={profile?.syncStatus === "online" ? "success" : "warning"}
-        />
-      </View>
-
-      <View style={styles.metricsRow}>
-        <MetricPill
-          label="Updates"
-          value={String(updates.length)}
-          tone="primary"
-        />
-        <MetricPill
-          label="Live Speed"
-          value={status?.speed != null ? `${status.speed.toFixed(1)} m/s` : "—"}
-          tone="success"
-        />
-        <MetricPill
-          label="Sample Fare"
-          value={currency(route?.fareTable?.[0]?.price ?? 0)}
-          tone="warning"
-        />
-      </View>
-
-      <SectionHeader title="Operations" />
-    </>
-  );
-
-  const footer = loading ? (
-    <View style={[styles.footerCard, styles.skeletonBox]} />
-  ) : (
-    <View style={styles.footerCard}>
-      <Text style={styles.footerTitle}>Live bus telemetry</Text>
-      <Text style={styles.footerText}>
-        {status?.currentStop ?? "Awaiting telemetry"} • ETA{" "}
-        {status?.etaMinutes ?? "--"} mins • {status?.condition ?? "Clear"}
-      </Text>
-      <Pressable
-        onPress={() => dispatch(refreshBusStatus())}
-        style={styles.refreshButton}
-      >
-        <MaterialCommunityIcons name="sync" color="#fff" size={18} />
-        <Text style={styles.refreshText}>Refresh feed</Text>
-      </Pressable>
-      <Pressable
-        onPress={async () => {
-          setLoading(true);
-          try {
-            console.log("Dashboard: user triggered live data sync");
-            await mockApi.reloadMock();
-            await dispatch(bootstrapRoute({ forceRemote: true }));
-            dispatch(refreshBusStatus());
-            dispatch(refreshActiveBuses());
-            dispatch(refreshLocationFeed());
-            dispatch(refreshUpdates());
-          } catch (error) {
-            console.log("Dashboard: refresh failed", error && error.message);
-          } finally {
-            setLoading(false);
-          }
-        }}
-        style={[styles.refreshButton, { marginLeft: 12 }]}
-      >
-        <MaterialCommunityIcons name="refresh" color="#fff" size={18} />
-        <Text style={styles.refreshText}>Refresh Data</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setDevOpen(true)}
-        style={[styles.refreshButton, { marginLeft: 12 }]}
-      >
-        <MaterialCommunityIcons name="wrench" color="#fff" size={18} />
-        <Text style={styles.refreshText}>Dev</Text>
-      </Pressable>
-    </View>
-  );
-
-  return (
-    <Screen scroll={false}>
-      <FlatList
-        data={cards}
-        keyExtractor={(item) => item.key}
-        numColumns={columns}
-        contentContainerStyle={styles.dashboardList}
-        columnWrapperStyle={styles.cardRow}
-        ListHeaderComponent={header}
-        ListFooterComponent={footer}
-        renderItem={({ item }) => (
-          <View style={styles.cardCell}>
-            {loading ? (
-              <View style={styles.skeletonCard} />
-            ) : (
-              <AppCard
-                title={item.key}
-                subtitle={item.subtitle}
-                accent={item.accent}
-                icon={item.icon}
-                onPress={() => navigation.navigate(item.screen)}
-              />
-            )}
->>>>>>> 074aea944ef7d952267c5b5ab9738e06f3b9d4e0
           </View>
         )}
       />
 
-<<<<<<< HEAD
           <View style={styles.metricsRow}>
             <MetricPill
               label="Live Speed"
@@ -461,90 +263,6 @@ export const DashboardScreen = ({ navigation }) => {
           </View>
         </>
       )}
-=======
-      <Modal visible={devOpen} animationType="slide" transparent>
-        <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
-          <View
-            style={{ backgroundColor: "#fff", borderRadius: 8, padding: 16 }}
-          >
-            <Text style={{ fontWeight: "800", marginBottom: 8 }}>
-              Developer Tools
-            </Text>
-            <TextInput
-              value={apiHost}
-              onChangeText={setApiHost}
-              placeholder="API base URL override (run npm run env to refresh)"
-              style={{
-                borderWidth: 1,
-                borderColor: "#ddd",
-                padding: 8,
-                marginBottom: 8,
-              }}
-            />
-            <Pressable
-              onPress={async () => {
-                try {
-                  await storage.saveApiBaseUrl(apiHost || null);
-                  setTestResult("Saved override");
-                } catch (error) {
-                  setTestResult("Save failed: " + (error && error.message));
-                }
-              }}
-              style={[styles.refreshButton, { alignSelf: "flex-start" }]}
-            >
-              <Text style={styles.refreshText}>Save Host</Text>
-            </Pressable>
-
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={async () => {
-                setTestResult("Testing...");
-                const started = Date.now();
-                try {
-                  await mockApi.reloadMock();
-                  const ms = Date.now() - started;
-                  setDiagSource(`${lastMockDataSource} @ ${lastMockDataTime}`);
-                  setTestResult(`OK (${ms}ms) - source ${lastMockDataSource}`);
-                } catch (error) {
-                  setTestResult("Test failed: " + (error && error.message));
-                }
-              }}
-              style={[styles.refreshButton, { alignSelf: "flex-start" }]}
-            >
-              <Text style={styles.refreshText}>Test Connectivity</Text>
-            </Pressable>
-
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={async () => {
-                try {
-                  await mockApi.clearMockCache();
-                  dispatch(setRefreshRequired(true));
-                  dispatch(setRoute(null));
-                  setTestResult("Initializer cache cleared");
-                } catch (error) {
-                  setTestResult("Failed: " + (error && error.message));
-                }
-              }}
-              style={[styles.refreshButton, { alignSelf: "flex-start" }]}
-            >
-              <Text style={styles.refreshText}>Run Initializer Flow</Text>
-            </Pressable>
-
-            <View style={{ height: 12 }} />
-            <Text>{testResult}</Text>
-            <Text>{diagSource}</Text>
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={() => setDevOpen(false)}
-              style={[styles.refreshButton, { alignSelf: "flex-end" }]}
-            >
-              <Text style={styles.refreshText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
->>>>>>> 074aea944ef7d952267c5b5ab9738e06f3b9d4e0
     </Screen>
   );
 };

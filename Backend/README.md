@@ -1,93 +1,145 @@
-# TRIXUL Backend - Local Setup Guide (Windows)
+# TRIXUL Backend — Setup Guide
 
-Welcome to the TRIXUL backend! This guide will help you set up the project on your local Windows machine. 
-The backend is built with Django, Django REST Framework, and requires PostgreSQL (with PostGIS enabled) and Redis.
+A live public transport tracking and ticketing backend built with **Django**, **Django REST Framework**, and **PostgreSQL + PostGIS**.
 
-## 📋 Prerequisites
+---
 
-Before you start, make sure you have the following installed on your Windows machine:
-1. **Python 3.10+**: Download from [python.org](https://www.python.org/downloads/). *Ensure you check "Add Python to PATH" during installation.*
-2. **PostgreSQL & PostGIS**: 
-   - Download the Windows installer from [EnterpriseDB](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads).
-   - During the PostgreSQL installation, use the Stack Builder (which opens at the end) to install the **PostGIS** extension under "Spatial Extensions".
-3. **Redis for Windows**: 
-   - Since Redis is natively for Linux, you have two options on Windows:
-     - **Option A (Recommended)**: Use [WSL2 (Windows Subsystem for Linux)](https://learn.microsoft.com/en-us/windows/wsl/install) and run `sudo apt install redis-server && sudo service redis-server start` inside the WSL terminal.
-     - **Option B**: Download a pre-compiled Windows port like [Memurai](https://www.memurai.com/) or an older [MSOpenTech Redis port](https://github.com/microsoftarchive/redis/releases).
+## Tech Stack
 
-## 🗄️ Database Setup
+| Layer | Technology |
+|-------|-----------|
+| Language | Python 3.10+ |
+| Framework | Django 4.2 + Django REST Framework |
+| Database | PostgreSQL 14+ with PostGIS extension |
+| Cache | Redis (optional — falls back to local memory) |
+| Auth | JWT via `djangorestframework-simplejwt` |
 
-1. Open **pgAdmin** (installed with PostgreSQL) or use the `psql` command line.
-2. Create a database named `trixul_db`.
-3. Create a user named `trixul_admin` with the password `secure_password_123` and grant them privileges to `trixul_db`.
-4. Enable the PostGIS extension on the new database. You can do this by running this query inside `trixul_db`:
+---
+
+## Quick Start (Linux/macOS)
+
+```bash
+# 1. Clone the repo and navigate to Backend
+cd TRIXUL/Backend
+
+# 2. Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Copy the environment template and fill in your details
+cp .env.example .env
+# Edit .env with your PostgreSQL credentials
+
+# 5. Run migrations
+python manage.py migrate
+
+# 6. Create a superuser (optional, for admin panel)
+python manage.py createsuperuser
+
+# 7. Start the development server
+python manage.py runserver 0.0.0.0:8000
+```
+
+---
+
+## Setup on Windows
+
+> [!IMPORTANT]
+> GeoDjango requires **GDAL** and **GEOS** binaries. On Windows you must install these BEFORE running `pip install`.
+
+### Step 1 — Install OSGeo4W (GDAL)
+
+1. Download the OSGeo4W installer: https://trac.osgeo.org/osgeo4w/
+2. Run the installer → choose "Express Desktop Install"
+3. Select at minimum: **GDAL**, **GEOS**, **PROJ**
+4. Add to your Windows `PATH`:
+   ```
+   C:\OSGeo4W\bin
+   ```
+5. Verify with: `gdalinfo --version`
+
+### Step 2 — Install PostgreSQL + PostGIS
+
+1. Download PostgreSQL: https://www.postgresql.org/download/windows/
+2. During install, also install the **Stack Builder**
+3. Use Stack Builder to install **PostGIS** for your PostgreSQL version
+4. Create the database:
    ```sql
+   CREATE DATABASE trixul_db;
+   \c trixul_db
    CREATE EXTENSION postgis;
    ```
 
-## 🚀 Installation
+### Step 3 — Configure and Run
 
-1. **Clone the repository** (or extract the folder) and open a Command Prompt or PowerShell in the `Backend` directory.
-   ```cmd
-   cd path\to\TRIXUL\Backend
-   ```
+```bat
+# In Command Prompt or PowerShell (activate venv first)
+cd TRIXUL\Backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 
-2. **Create a Virtual Environment**:
-   ```cmd
-   python -m venv venv
-   ```
+# Copy and fill in .env
+copy .env.example .env
+# Edit .env in Notepad with your PostgreSQL password
 
-3. **Activate the Virtual Environment**:
-   ```cmd
-   venv\Scripts\activate
-   ```
-   *(Note: You should see `(venv)` appear at the beginning of your command prompt line).*
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
 
-4. **Install Dependencies**:
-   Ensure you are using the activated virtual environment, then install the required Python packages:
-   ```cmd
-   pip install -r requirements.txt
-   ```
+---
 
-## ⚙️ Running Migrations & Seeding Data
+## Environment Variables
 
-Now that the environment and database are ready, prepare the database schema:
+| Key | Description | Default |
+|-----|-------------|---------|
+| `SECRET_KEY` | Django secret key | (insecure default) |
+| `DEBUG` | Enable debug mode | `True` |
+| `DB_NAME` | PostgreSQL database name | `trixul_db` |
+| `DB_USER` | PostgreSQL user | `trixul_admin` |
+| `DB_PASSWORD` | PostgreSQL password | *(empty)* |
+| `DB_HOST` | PostgreSQL host | `localhost` |
+| `DB_PORT` | PostgreSQL port | `5432` |
+| `CACHE_BACKEND` | Cache backend class | `locmem` (no Redis needed) |
+| `CACHE_URL` | Redis URL (if using Redis) | `redis://127.0.0.1:6379/1` |
 
-1. **Apply Migrations**:
-   ```cmd
-   python manage.py makemigrations
-   python manage.py migrate
-   ```
+---
 
-2. **Seed the Mock Data**:
-   We have a custom management command to automatically populate the database with testing routes, stops, buses, and employees.
-   ```cmd
-   python manage.py seed_trixul
-   ```
+## API Endpoints
 
-3. **Create a Superuser (Optional)**:
-   If you want to access the Django Admin panel:
-   ```cmd
-   python manage.py createsuperuser
-   ```
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| `POST` | `/api/v1/auth/login/` | Login with emp_id, receive JWT | No |
+| `GET` | `/api/v1/routes/<route_id>/` | Fetch route stops and fares | No |
+| `POST` | `/api/v1/telemetry/heartbeat/` | Send live GPS location | JWT |
+| `POST` | `/api/v1/ticketing/issue/` | Issue and log a ticket | JWT |
 
-## 🏃 Running the Server
+---
 
-1. Ensure **Redis** is running in the background.
-2. With your virtual environment activated, start the Django development server:
-   ```cmd
-   python manage.py runserver 0.0.0.0:8000
-   ```
+## Running the Backend Simulation Tool
 
-The backend is now accessible at `http://127.0.0.1:8000/`.
+```bash
+python manage.py simulate_telemetry --shift_id shift-102-1001-M
+```
 
-## 📌 API Endpoints
+This simulates a bus moving between stops and prints PostGIS distance math to the console.
 
-You can test the endpoints using Postman or ThunderClient:
-- **Login**: `POST /api/v1/auth/login/` (Use `emp_id`: "cond-1001" to get JWT tokens)
-- **Route Init**: `GET /api/v1/routes/route-102/`
-- **Telemetry**: `POST /api/v1/telemetry/heartbeat/` *(Requires JWT Auth)*
-- **Ticketing**: `POST /api/v1/ticketing/issue/` *(Requires JWT Auth)*
+---
 
-## 💡 Troubleshooting on Windows
-- If you get `GEOS API` or `GDAL` missing errors, Windows requires specific GeoDjango spatial libraries. Install them via OSGeo4W or set the `GEOS_LIBRARY_PATH` and `GDAL_LIBRARY_PATH` in `settings.py` pointing to your PostgreSQL installation's PostGIS `bin` folder.
+## Architecture
+
+```
+core/
+├── settings.py      # All config loaded from .env
+├── urls.py          # Mounts api/ under /api/
+api/
+├── models.py        # Employee, Bus, Stop, Route, RouteStop, FareRule, Shift, Ticket, BusLocation
+├── serializers.py   # Input validation for all endpoints
+├── views.py         # Thin HTTP handlers only
+├── services.py      # All business logic & PostGIS queries
+├── authentication.py # Custom JWT → Employee model resolution
+└── admin.py         # Django admin registration
+```

@@ -1,95 +1,93 @@
-// File: src/screens/OtherBusRoutesScreen.js
-// Purpose: Lists other active buses and filters them locally.
-// Imports: bus state and the refresh action.
-// Behavior: This screen behaves like a live fleet browser, not an editor.
 import React, { useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
-import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { refreshActiveBuses } from "../store/slices/busSlice";
+import { useAppSelector } from "../store/hooks";
 
 export const OtherBusRoutesScreen = () => {
-  const dispatch = useAppDispatch();
   const buses = useAppSelector((state) => state.bus.activeBuses);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    dispatch(refreshActiveBuses());
-    const timer = setInterval(() => dispatch(refreshActiveBuses()), 12000);
-    return () => clearInterval(timer);
-  }, [dispatch]);
-
-  const filtered = buses.filter(
+  const filtered = (buses ?? []).filter(
     (bus) =>
-      bus.busNumber.toLowerCase().includes(query.toLowerCase()) ||
-      bus.routeName.toLowerCase().includes(query.toLowerCase()),
+      (bus.busNumber ?? "").toLowerCase().includes(query.toLowerCase()) ||
+      (bus.routeName ?? "").toLowerCase().includes(query.toLowerCase())
   );
 
   return (
     <Screen scroll={false}>
       <Text style={styles.title}>Other Bus Routes</Text>
       <Text style={styles.subtitle}>
-        Track active fleet vehicles, search by bus number or route, and monitor
-        live occupancy.
+        Track active fleet vehicles by bus number or route.
       </Text>
-      <TextInput
-        placeholder="Search buses or routes"
-        placeholderTextColor={colors.light.textMuted}
-        value={query}
-        onChangeText={setQuery}
-        style={styles.search}
-      />
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.busId}
-        style={styles.list}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              <View>
-                <Text style={styles.busNumber}>{item.busNumber}</Text>
-                <Text style={styles.routeName}>{item.routeName}</Text>
-              </View>
-              <StatusBadge
-                label={item.status}
-                tone={
-                  item.status === "Running"
-                    ? "success"
-                    : item.status === "Delayed"
-                      ? "warning"
-                      : item.status === "Stopped"
-                        ? "danger"
-                        : "info"
-                }
-              />
-            </View>
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <MaterialCommunityIcons
-                  name="seat-recline-normal"
-                  size={18}
-                  color={colors.light.primary}
+      {buses.length > 0 && (
+        <TextInput
+          placeholder="Search buses or routes"
+          placeholderTextColor={colors.light.textMuted}
+          value={query}
+          onChangeText={setQuery}
+          style={styles.search}
+        />
+      )}
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          title="No active buses"
+          subtitle="Fleet data will appear here once the backend pushes active bus records."
+        />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.busId}
+          style={styles.list}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                <View>
+                  <Text style={styles.busNumber}>{item.busNumber}</Text>
+                  <Text style={styles.routeName}>{item.routeName}</Text>
+                </View>
+                <StatusBadge
+                  label={item.status}
+                  tone={
+                    item.status === "Running"
+                      ? "success"
+                      : item.status === "Delayed"
+                        ? "warning"
+                        : item.status === "Stopped"
+                          ? "danger"
+                          : "info"
+                  }
                 />
-                <Text style={styles.metaText}>{item.occupancy}% occupancy</Text>
               </View>
-              <View style={styles.metaItem}>
-                <MaterialCommunityIcons
-                  name="map-marker"
-                  size={18}
-                  color={colors.light.primary}
-                />
-                <Text style={styles.metaText}>{item.currentStop}</Text>
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <MaterialCommunityIcons
+                    name="seat-recline-normal"
+                    size={18}
+                    color={colors.light.primary}
+                  />
+                  <Text style={styles.metaText}>{item.occupancy}% occupancy</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <MaterialCommunityIcons
+                    name="map-marker"
+                    size={18}
+                    color={colors.light.primary}
+                  />
+                  <Text style={styles.metaText}>{item.currentStop}</Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
-      />
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+        />
+      )}
     </Screen>
   );
 };
