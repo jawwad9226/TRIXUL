@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Trixual ETM",
+    "slug": "trixual-etm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#07111f"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.trixual.etm"
+    },
+    "ios": {
+      "bundleIdentifier": "com.trixual.etm"
+    },
+    "plugins": []
+  }
+}
