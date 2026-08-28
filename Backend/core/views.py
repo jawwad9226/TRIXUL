@@ -2,7 +2,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .services import RouteService, TelemetryService, TicketingService
-from .serializers import HeartbeatSerializer, TicketIssueSerializer
+from .serializers import HeartbeatSerializer, TicketIssueSerializer, ConductorAuthSerializer
+
+class ConductorLoginView(APIView):
+    # THIS IS THE MAGIC FIX FOR THE 401 ERROR:
+    authentication_classes = [] 
+    permission_classes = []
+
+    def post(self, request):
+        serializer = ConductorAuthSerializer(data=request.data)
+        if serializer.is_valid():
+            # The serializer is now handling the token logic, we just return the data
+            return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
 
 class RouteInitializationView(APIView):
     def get(self, request, route_id):
