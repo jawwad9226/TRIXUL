@@ -1,12 +1,16 @@
+<<<<<<< HEAD
 // File: src/screens/LocationScreen.js
 // Purpose: Captures GPS and pushes live bus location updates to the backend.
 // Imports: location API, route state, and bus telemetry actions.
 // Behavior: The screen keeps the store and backend in sync with each report.
+=======
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import React, { useEffect, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 
+<<<<<<< HEAD
 import { ProgressBar } from "../components/ProgressBar";
 import { Screen } from "../components/Screen";
 import { colors, radii, spacing } from "../constants/theme";
@@ -26,6 +30,22 @@ export const LocationScreen = () => {
     (state) => state.bus.locationTimestamp,
   );
   const [permissionMessage, setPermissionMessage] = useState(null);
+=======
+import { Screen } from "../components/Screen";
+import { colors, radii, spacing } from "../constants/theme";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
+import { sendHeartbeat } from "../services/api";
+
+export const LocationScreen = () => {
+  const dispatch = useAppDispatch();
+  const profile = useAppSelector((state) => state.conductor.profile);
+  const route = useAppSelector((state) => state.route.route);
+  const status = useAppSelector((state) => state.bus.status);
+  const [permissionMessage, setPermissionMessage] = useState(null);
+  const [lastGps, setLastGps] = useState(null);
+  const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "syncing" | "synced" | "queued"
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   const reportingRef = useRef(false);
   const stops = route?.stops ?? [];
 
@@ -33,6 +53,7 @@ export const LocationScreen = () => {
     let active = true;
     let timer = null;
 
+<<<<<<< HEAD
     // Capture the live GPS position and send it to the backend.
     const captureAndSend = async () => {
       // Skip duplicate in-flight reports and wait for a real bus id.
@@ -78,15 +99,75 @@ export const LocationScreen = () => {
           }),
         ).unwrap();
         if (active) {
+=======
+    const captureAndSend = async () => {
+      if (!profile?.shiftId && !profile?.shift) {
+        setPermissionMessage("No active shift found. Please complete initialization first.");
+        return;
+      }
+      if (reportingRef.current) return;
+
+      reportingRef.current = true;
+      setSyncStatus("syncing");
+
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!active) return;
+
+        if (permission.status !== "granted") {
+          setPermissionMessage("GPS permission is required to report live location.");
+          setSyncStatus("idle");
+          return;
+        }
+
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setLastGps(coords);
+
+        const payload = {
+          shift_id: profile.shiftId || profile.shift || "shift-001",
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          speed: Number.isFinite(position.coords.speed)
+            ? Math.max(0, position.coords.speed)
+            : 0,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Send to backend and update Redux with real ETA from PostGIS
+        const result = await sendHeartbeat(payload);
+        if (active) {
+          dispatch(setBusStatus({
+            current_stop: result.current_stop,
+            next_stop: result.next_stop,
+            eta_minutes: result.eta_minutes,
+            condition: result.condition,
+            speed: payload.speed,
+          }));
+          setSyncStatus("synced");
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
           setPermissionMessage(null);
         }
       } catch (error) {
         if (active) {
+<<<<<<< HEAD
           // Show the immediate read/send failure so the user knows what to fix.
           setPermissionMessage(
             error instanceof Error
               ? error.message
               : "Unable to read GPS location.",
+=======
+          setSyncStatus("queued");
+          dispatch(setBusError(error.message));
+          setPermissionMessage(
+            error instanceof Error ? error.message : "Unable to send GPS report."
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
           );
         }
       } finally {
@@ -95,6 +176,7 @@ export const LocationScreen = () => {
     };
 
     captureAndSend();
+<<<<<<< HEAD
     // Re-send the live location every 30 seconds while the screen stays open.
     timer = setInterval(captureAndSend, 30000);
     // Re-report immediately when the app returns to the foreground.
@@ -115,17 +197,42 @@ export const LocationScreen = () => {
       appStateSubscription.remove();
     };
   }, [conductor?.busId, dispatch]);
+=======
+    // Re-send every 30 seconds while screen is open
+    timer = setInterval(captureAndSend, 30000);
+
+    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") captureAndSend();
+    });
+
+    return () => {
+      active = false;
+      if (timer) clearInterval(timer);
+      appStateSubscription.remove();
+    };
+  }, [dispatch, profile]);
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
   return (
     <Screen>
       <Text style={styles.title}>Current Location</Text>
       <Text style={styles.subtitle}>
+<<<<<<< HEAD
         Live GPS reporting to the backend every 30 seconds with offline retry.
       </Text>
 
       <View style={styles.mapCard}>
         <View style={styles.mapHeader}>
           <Text style={styles.mapTitle}>Live route map</Text>
+=======
+        Live GPS reporting to the backend every 30 seconds.
+      </Text>
+
+      {/* Route Stop Visualization */}
+      <View style={styles.mapCard}>
+        <View style={styles.mapHeader}>
+          <Text style={styles.mapTitle}>Route stops</Text>
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
           <MaterialCommunityIcons
             name="map-marker-path"
             size={22}
@@ -133,6 +240,7 @@ export const LocationScreen = () => {
           />
         </View>
         <View style={styles.routeTrack}>
+<<<<<<< HEAD
           {stops.map((stop, index) => (
             <View key={stop.id} style={styles.stopRow}>
               <View
@@ -172,6 +280,55 @@ export const LocationScreen = () => {
           <Text style={styles.label}>Route progression</Text>
           <ProgressBar progress={progress} />
         </View>
+=======
+          {stops.length === 0 ? (
+            <Text style={styles.emptyText}>No stops loaded — run Initializer first.</Text>
+          ) : (
+            stops.map((stop, index) => (
+              <View key={stop.stop_id || stop.id || index} style={styles.stopRow}>
+                <View
+                  style={[
+                    styles.dot,
+                    stop.stop_name === status?.current_stop && styles.dotActive,
+                  ]}
+                />
+                <View style={styles.stopInfo}>
+                  <Text style={styles.stopName}>{stop.name || stop.stop_name}</Text>
+                  <Text style={styles.stopDistance}>Stop {stop.index ?? index + 1}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      </View>
+
+      {/* Live GPS Data Card */}
+      <View style={styles.card}>
+        <Text style={styles.label}>Current GPS location</Text>
+        {lastGps ? (
+          <Text style={styles.coords}>
+            {lastGps.latitude.toFixed(5)}, {lastGps.longitude.toFixed(5)}
+          </Text>
+        ) : (
+          <Text style={styles.coords}>Awaiting GPS fix...</Text>
+        )}
+        <Text style={styles.meta}>
+          Current stop: {status?.current_stop ?? "—"}
+        </Text>
+        <Text style={styles.meta}>
+          Next stop: {status?.next_stop ?? "—"}
+        </Text>
+        <Text style={styles.meta}>
+          ETA: {status?.eta_minutes != null ? `${status.eta_minutes} min` : "—"}
+        </Text>
+        <Text style={styles.meta}>Sync: {syncStatus}</Text>
+
+        {permissionMessage ? (
+          <Text style={[styles.meta, { color: colors.light.danger ?? "#dc2626" }]}>
+            {permissionMessage}
+          </Text>
+        ) : null}
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
       </View>
     </Screen>
   );
@@ -212,6 +369,10 @@ const styles = StyleSheet.create({
   stopInfo: { marginLeft: spacing.md },
   stopName: { color: colors.light.text, fontWeight: "700" },
   stopDistance: { color: colors.light.textMuted, fontSize: 12 },
+<<<<<<< HEAD
+=======
+  emptyText: { color: colors.light.textMuted, fontStyle: "italic" },
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   card: {
     backgroundColor: colors.light.surface,
     borderRadius: radii.xl,

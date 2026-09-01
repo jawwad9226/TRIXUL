@@ -32,6 +32,10 @@ import {
   updatePassengerCounts,
   verifyOnlinePayment,
 } from "../store/slices/ticketSlice";
+<<<<<<< HEAD
+=======
+import { issueTicket } from "../services/api";
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import { calculateFare, totalPassengers } from "../utils/fare";
 import { currency, timeLabel } from "../utils/format";
 
@@ -44,7 +48,13 @@ export const TicketBookingScreen = () => {
   const bookingStatus = useAppSelector((state) => state.ticket.bookingStatus);
   const currentTicket = useAppSelector((state) => state.ticket.currentTicket);
   const bookingError = useAppSelector((state) => state.ticket.bookingError);
+<<<<<<< HEAD
   const [showQr, setShowQr] = useState(false);
+=======
+  const profile = useAppSelector((state) => state.conductor.profile);
+  const [showQr, setShowQr] = useState(false);
+  const [isIssuing, setIsIssuing] = useState(false);
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
   useEffect(() => {
     storage
@@ -85,8 +95,25 @@ export const TicketBookingScreen = () => {
   };
 
   const printTicket = async () => {
+<<<<<<< HEAD
     try {
       await dispatch(submitBooking()).unwrap();
+=======
+    setIsIssuing(true);
+    try {
+      const payload = {
+        shift_id: profile?.shiftId || profile?.shift || "default_shift",
+        source_stop_id: draft.boardingStop,
+        dest_stop_id: draft.destinationStop,
+        passenger_count: total,
+        total_fare: fare.finalAmount,
+        payment_method: draft.paymentMode,
+        timestamp: new Date().toISOString(),
+      };
+      const response = await issueTicket(payload);
+
+      await dispatch(submitBooking({ ticket_id: response.ticket_id })).unwrap();
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
       Alert.alert(
         "Ticket saved",
         "Digital ticket has been generated and stored locally.",
@@ -96,6 +123,11 @@ export const TicketBookingScreen = () => {
         "Booking failed",
         error instanceof Error ? error.message : "Unknown booking error",
       );
+<<<<<<< HEAD
+=======
+    } finally {
+      setIsIssuing(false);
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
     }
   };
 
@@ -150,9 +182,15 @@ export const TicketBookingScreen = () => {
                 <Picker.Item label="Select boarding stop" value="" />
                 {stops.map((stop) => (
                   <Picker.Item
+<<<<<<< HEAD
                     key={stop.id}
                     label={stop.name}
                     value={stop.name}
+=======
+                    key={stop.id || stop.stop_id}
+                    label={stop.name}
+                    value={stop.stop_id}
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
                   />
                 ))}
               </Picker>
@@ -170,9 +208,15 @@ export const TicketBookingScreen = () => {
                 <Picker.Item label="Select destination stop" value="" />
                 {stops.map((stop) => (
                   <Picker.Item
+<<<<<<< HEAD
                     key={stop.id}
                     label={stop.name}
                     value={stop.name}
+=======
+                    key={stop.id || stop.stop_id}
+                    label={stop.name}
+                    value={stop.stop_id}
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
                   />
                 ))}
               </Picker>
@@ -286,7 +330,11 @@ export const TicketBookingScreen = () => {
           <PrimaryButton
             title={canPrint ? "Print Ticket" : "Await Payment"}
             onPress={printTicket}
+<<<<<<< HEAD
             loading={bookingStatus === "pending"}
+=======
+            loading={bookingStatus === "pending" || isIssuing}
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
             disabled={!canPrint}
           />
           <PrimaryButton

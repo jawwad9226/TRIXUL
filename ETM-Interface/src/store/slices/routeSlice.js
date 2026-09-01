@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // File: src/store/slices/routeSlice.js
 // Purpose: Owns route data, GPS state, and route-edit flags.
 // Imports: mock API for bootstrap loading.
@@ -5,11 +6,15 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";
+=======
+import { createSlice } from "@reduxjs/toolkit";
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
 const initialState = {
   route: null,
   loading: false,
   error: null,
+<<<<<<< HEAD
   currentGps: { latitude: 17.385, longitude: 78.4867 },
   routeEdited: false,
   refreshRequired: false,
@@ -22,6 +27,11 @@ export const bootstrapRoute = createAsyncThunk(
   },
 );
 
+=======
+  refreshRequired: false,
+};
+
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 const routeSlice = createSlice({
   name: "route",
   initialState,
@@ -32,16 +42,22 @@ const routeSlice = createSlice({
     updateRoute(state, action) {
       if (state.route) {
         state.route = { ...state.route, ...action.payload };
+<<<<<<< HEAD
         state.routeEdited = true;
       }
     },
     setGps(state, action) {
       state.currentGps = action.payload;
     },
+=======
+      }
+    },
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
     setRefreshRequired(state, action) {
       state.refreshRequired = action.payload;
     },
   },
+<<<<<<< HEAD
   extraReducers: (builder) => {
     builder
       .addCase(bootstrapRoute.pending, (state) => {
@@ -61,4 +77,9 @@ const routeSlice = createSlice({
 
 export const { setRoute, updateRoute, setGps, setRefreshRequired } =
   routeSlice.actions;
+=======
+});
+
+export const { setRoute, updateRoute, setRefreshRequired } = routeSlice.actions;
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 export default routeSlice.reducer;

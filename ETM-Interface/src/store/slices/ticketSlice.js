@@ -4,7 +4,10 @@
 // Behavior: Booking screens dispatch here and receive the updated ticket state.
 import { createAsyncThunk, createSlice, nanoid } from "@reduxjs/toolkit";
 
+<<<<<<< HEAD
 import { mockApi } from "../../services/mockApi";
+=======
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import { storage } from "../../services/storage";
 import { calculateFare } from "../../utils/fare";
 
@@ -28,13 +31,20 @@ const initialState = {
 export const verifyOnlinePayment = createAsyncThunk(
   "ticket/verifyPayment",
   async (amount) => {
+<<<<<<< HEAD
     const result = await mockApi.verifyPayment(amount);
     return result;
+=======
+    // In a real app this would call a payment gateway.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return { status: amount > 0 ? "success" : "failed", referenceId: `PAY-${Date.now()}` };
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   },
 );
 
 export const submitBooking = createAsyncThunk(
   "ticket/submitBooking",
+<<<<<<< HEAD
   async (_, { getState }) => {
     const state = getState();
     const route = state.route.route;
@@ -43,6 +53,11 @@ export const submitBooking = createAsyncThunk(
     if (!route || !conductor) {
       throw new Error("Route or conductor details are missing");
     }
+=======
+  async (ticketData, { getState }) => {
+    const state = getState();
+    const route = state.route.route;
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
     const { boardingStop, destinationStop, passengerCounts, paymentMode } =
       state.ticket.draft;
@@ -53,14 +68,21 @@ export const submitBooking = createAsyncThunk(
       passengerCounts,
     );
     const ticket = {
+<<<<<<< HEAD
       ticketId: nanoid(),
       passengerCounts,
       routeId: route.id,
+=======
+      ticketId: ticketData.ticket_id || nanoid(),
+      passengerCounts,
+      routeId: route?.route_id || "unknown_route",
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
       boardingStop,
       destinationStop,
       fare: fare.finalAmount,
       paymentMode,
       timestamp: new Date().toISOString(),
+<<<<<<< HEAD
       conductorId: conductor.conductorId,
       busId: conductor.busId,
     };
@@ -68,6 +90,12 @@ export const submitBooking = createAsyncThunk(
     const response = await mockApi.submitTicketBooking(ticket);
     await storage.appendTicket(ticket);
     return { ticket, response };
+=======
+    };
+
+    await storage.appendTicket(ticket);
+    return { ticket };
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   },
 );
 

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // File: src/store/slices/busSlice.js
 // Purpose: Tracks live bus status, active buses, and location feed state.
 // Imports: mock API and bus telemetry services.
@@ -5,6 +6,9 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";
+=======
+import { createSlice } from "@reduxjs/toolkit";
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import {
   fetchLatestBusLocation,
   fetchLiveBusStatus,
@@ -12,17 +16,22 @@ import {
 } from "../../services/busTelemetry";
 
 const initialState = {
+<<<<<<< HEAD
   status: null,
   locationProgress: 0,
   locationLabel: "Awaiting live GPS",
   locationSpeed: 0,
   locationSyncStatus: "idle",
   locationTimestamp: null,
+=======
+  status: null, // { current_stop, next_stop, eta_minutes, condition, speed }
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   activeBuses: [],
   loading: false,
   error: null,
 };
 
+<<<<<<< HEAD
 // Refresh the live status card from the backend telemetry summary.
 export const refreshBusStatus = createAsyncThunk(
   "bus/refreshStatus",
@@ -120,4 +129,23 @@ const busSlice = createSlice({
   },
 });
 
+=======
+const busSlice = createSlice({
+  name: "bus",
+  initialState,
+  reducers: {
+    setBusStatus(state, action) {
+      state.status = action.payload;
+    },
+    setBusLoading(state, action) {
+      state.loading = action.payload;
+    },
+    setBusError(state, action) {
+      state.error = action.payload;
+    }
+  },
+});
+
+export const { setBusStatus, setBusLoading, setBusError } = busSlice.actions;
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 export default busSlice.reducer;

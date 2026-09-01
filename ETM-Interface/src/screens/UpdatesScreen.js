@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // File: src/screens/UpdatesScreen.js
 // Purpose: Shows announcements and lets staff mark tasks complete.
 // Imports: updates state and update actions.
@@ -6,28 +7,46 @@ import React, { useEffect } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
+=======
+import React from "react";
+import { FlatList, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+import { EmptyState } from "../components/EmptyState";
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+<<<<<<< HEAD
 import {
   markUpdateComplete,
   refreshUpdates,
 } from "../store/slices/updateSlice";
+=======
+import { markUpdateComplete } from "../store/slices/updateSlice";
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import { timeLabel } from "../utils/format";
 
 export const UpdatesScreen = () => {
   const dispatch = useAppDispatch();
+<<<<<<< HEAD
   const items = useAppSelector((state) => state.updates.items);
 
   useEffect(() => {
     dispatch(refreshUpdates());
   }, [dispatch]);
 
+=======
+  // Updates are stored in Redux (populated from backend when available)
+  const items = useAppSelector((state) => state.updates.items);
+
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   return (
     <Screen scroll={false}>
       <Text style={styles.title}>Updates</Text>
       <Text style={styles.subtitle}>
+<<<<<<< HEAD
         Announcements, route changes, admin replies and conductor tasks with
         unread badges.
       </Text>
@@ -76,6 +95,63 @@ export const UpdatesScreen = () => {
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
       />
+=======
+        Announcements, route changes, admin replies and conductor tasks.
+      </Text>
+
+      {items.length === 0 ? (
+        <EmptyState
+          title="No updates yet"
+          subtitle="Updates from the dispatch system will appear here once the backend pushes them."
+        />
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          style={styles.list}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardBody}>{item.body}</Text>
+                </View>
+                {item.unread ? <View style={styles.unreadDot} /> : null}
+              </View>
+              <View style={styles.metaRow}>
+                <StatusBadge
+                  label={item.priority}
+                  tone={
+                    item.priority === "High"
+                      ? "danger"
+                      : item.priority === "Medium"
+                        ? "warning"
+                        : "info"
+                  }
+                />
+                <StatusBadge label={item.category} tone="info" />
+                <Text style={styles.time}>{timeLabel(item.timestamp)}</Text>
+              </View>
+              <View
+                style={styles.taskButton}
+                onStartShouldSetResponder={() => true}
+                onResponderRelease={() => dispatch(markUpdateComplete(item.id))}
+              >
+                <MaterialCommunityIcons
+                  name={item.completed ? "check-circle" : "check-circle-outline"}
+                  size={18}
+                  color="#fff"
+                />
+                <Text style={styles.taskText}>
+                  {item.completed ? "Completed" : "Mark task complete"}
+                </Text>
+              </View>
+            </View>
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+        />
+      )}
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
     </Screen>
   );
 };

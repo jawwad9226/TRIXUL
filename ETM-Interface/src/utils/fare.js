@@ -35,9 +35,15 @@ export const getStopPrice = (route, boardingStop, destinationStop) => {
 };
 
 export const calculateFare = (route, boardingStop, destinationStop, counts) => {
+<<<<<<< HEAD
   const boarding = route?.stops?.find((stop) => stop.name === boardingStop);
   const destination = route?.stops?.find(
     (stop) => stop.name === destinationStop,
+=======
+  const boarding = route?.stops?.find((stop) => (stop.id || stop.stop_id) === boardingStop);
+  const destination = route?.stops?.find(
+    (stop) => (stop.id || stop.stop_id) === destinationStop,
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   );
 
   if (!boarding || !destination) {
@@ -55,7 +61,11 @@ export const calculateFare = (route, boardingStop, destinationStop, counts) => {
   }
 
   const stopPair = normalizeStopPair(boardingStop, destinationStop);
+<<<<<<< HEAD
   const stopLabel = `${boardingStop} to ${destinationStop}`;
+=======
+  const stopLabel = `${boarding.name} to ${destination.name}`;
+>>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   const baseFare = getStopPrice(route, boardingStop, destinationStop);
   const passengerCount = totalPassengers(counts);
   const womenDiscount = counts.women * 0.5;
