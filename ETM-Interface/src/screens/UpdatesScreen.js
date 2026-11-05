@@ -16,7 +16,7 @@ export const UpdatesScreen = () => {
   const items = useAppSelector((state) => state.updates.items);
 
   return (
-    <Screen scroll={false}>
+    <Screen showBack backTitle="Dashboard" scroll={false}>
       <Text style={styles.title}>Updates</Text>
       <Text style={styles.subtitle}>
         Announcements, route changes, admin replies and conductor tasks.

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Employee, Route, Stop, RouteStop
+from .models import Employee, Route, Stop, RouteStop, Shift
 
 class ConductorAuthSerializer(serializers.Serializer):
     # Accept multiple possible key names just in case the frontend sends something different
@@ -21,14 +21,28 @@ class ConductorAuthSerializer(serializers.Serializer):
         refresh = RefreshToken.for_user(employee)
         refresh['user_id'] = employee.emp_id  # Force the token to use emp_id
 
+        # Fetch active shift if one exists for this conductor
+        active_shift = Shift.objects.filter(emp=employee, status='Active').select_related('bus', 'route').first()
+        shift_info = None
+        if active_shift:
+            shift_info = {
+                'shift_id': active_shift.shift_id,
+                'bus_id': active_shift.bus.bus_id,
+                'bus_number': active_shift.bus.registration_number,
+                'route_id': active_shift.route.route_id,
+                'route_name': active_shift.route.route_name
+            }
+
         return {
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'employee': {
                 'id': employee.emp_id,
+                'emp_id': employee.emp_id,
                 'name': employee.name,
                 'role': employee.role
-            }
+            },
+            'shift': shift_info
         }
 
 

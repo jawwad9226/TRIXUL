@@ -36,9 +36,12 @@ export const InitializerScreen = () => {
       if (loginRes?.employee) {
         const profileData = {
           conductorName: loginRes.employee.name,
-          conductorId: loginRes.employee.emp_id,
+          conductorId: loginRes.employee.id || loginRes.employee.emp_id || empId.trim(),
           role: loginRes.employee.role,
-          shift: "Morning Shift", // Defaulting as shift API isn't built
+          shift: loginRes.shift?.route_name ? `${loginRes.shift.shift_id}` : "Morning Shift",
+          shiftId: loginRes.shift?.shift_id || "shift-001",
+          busNumber: loginRes.shift?.bus_number || "MH-30-AB-1234",
+          busId: loginRes.shift?.bus_id || "bus-101",
         };
         dispatch(setProfile(profileData));
         await storage.saveConductorData(profileData);
@@ -65,7 +68,7 @@ export const InitializerScreen = () => {
   };
 
   return (
-    <Screen>
+    <Screen showBack backTitle="Dashboard">
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Live Initialization</Text>

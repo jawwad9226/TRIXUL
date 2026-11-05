@@ -86,7 +86,7 @@ export const EmergencyAlertScreen = () => {
   }
 
   return (
-    <Screen>
+    <Screen showBack backTitle="Dashboard">
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Emergency Alert</Text>

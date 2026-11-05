@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.gis.geos import Point
-from core.models import Employee, Bus, Stop, Route, RouteStop, FareRule
+from core.models import Employee, Bus, Stop, Route, RouteStop, FareRule, Shift
 
 class Command(BaseCommand):
     help = 'Seeds the database with realistic MSRTC route data for the live demo.'
@@ -71,5 +71,17 @@ class Command(BaseCommand):
             defaults={"base_fare": 10.00, "per_km_rate": 1.50}
         )
         self.stdout.write("Applied Fare Rules: Base ₹10 + ₹1.50/km")
+
+        # 7. Create Active Shift linking Employee, Bus, and Route
+        shift, created = Shift.objects.get_or_create(
+            shift_id="shift-001",
+            defaults={
+                "emp": emp,
+                "bus": bus,
+                "route": route,
+                "status": "Active"
+            }
+        )
+        self.stdout.write(f"Created Shift: {shift.shift_id} (Active on {route.route_name})")
 
         self.stdout.write(self.style.SUCCESS("✅ Database successfully seeded with real-world demo data!"))
