@@ -5,6 +5,7 @@ import FleetHUD from './pages/FleetHUD'
 import ShiftDispatcher from './pages/ShiftDispatcher'
 import RevenueDashboard from './pages/RevenueDashboard'
 import IncidentCenter from './pages/IncidentCenter'
+import RouteManager from './pages/RouteManager'
 import { useIncidents } from './hooks/useIncidents'
 
 function AppRoutes() {
@@ -18,6 +19,7 @@ function AppRoutes() {
         <Route path="/shifts" element={<ShiftDispatcher />} />
         <Route path="/revenue" element={<RevenueDashboard />} />
         <Route path="/incidents" element={<IncidentCenter />} />
+        <Route path="/routes" element={<RouteManager />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

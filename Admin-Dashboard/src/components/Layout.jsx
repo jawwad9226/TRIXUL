@@ -1,7 +1,8 @@
 /**
  * components/Layout.jsx
- * Admin Command Center layout with persistent Global Revenue HUD in the header
- * and responsive command sidebar navigation.
+ * Persistent Shell for TRIXUL Admin Command Center.
+ * Top Header: Live Total Revenue, Cash vs UPI Breakdown, Active Fleet Counter, System Status.
+ * Sidebar Navigation: Live Dashboard, Fleet Map, Shift Dispatcher, Revenue, Incidents.
  */
 import { NavLink } from 'react-router-dom'
 import {
@@ -10,49 +11,50 @@ import {
   ClipboardList,
   TrendingUp,
   ShieldAlert,
-  Network,
   Banknote,
   QrCode,
   Bus,
-  Radio,
+  Activity,
+  Route as RouteIcon,
 } from 'lucide-react'
 import { useRevenue } from '../hooks/useRevenue'
 import { useFleetData } from '../hooks/useFleetData'
 
 const NAV = [
-  { to: '/',          label: 'Live Dashboard',       icon: LayoutDashboard },
-  { to: '/fleet',     label: 'Fleet Tracking',       icon: MapPin },
-  { to: '/shifts',    label: 'Shift Management',     icon: ClipboardList },
-  { to: '/revenue',   label: 'Revenue Analytics',    icon: TrendingUp },
-  { to: '/incidents', label: 'Incidents & AI Alerts', icon: ShieldAlert },
+  { to: '/',          label: 'Live Dashboard',   icon: LayoutDashboard },
+  { to: '/fleet',     label: 'Fleet Map',        icon: MapPin },
+  { to: '/shifts',    label: 'Shift Dispatcher', icon: ClipboardList },
+  { to: '/revenue',   label: 'Revenue',          icon: TrendingUp },
+  { to: '/incidents', label: 'Incidents',        icon: ShieldAlert },
+  { to: '/routes',    label: 'Route Manager',    icon: RouteIcon },
 ]
 
 export default function Layout({ children, hasOpenSOS }) {
-  const { data: revenueData } = useRevenue()
-  const { summary } = useFleetData()
+  const { data: revenueData, error: revError } = useRevenue()
+  const { summary, error: fleetError } = useFleetData()
 
   const totalRev = revenueData?.total_revenue ?? 0
   const cashRev = revenueData?.cash?.amount ?? 0
   const upiRev = revenueData?.upi?.amount ?? 0
   const activeBuses = summary?.active_buses ?? 0
-  const totalBuses = summary?.total_buses ?? 0
+  const isOnline = !revError && !fleetError
 
   return (
     <div className="flex h-screen bg-trixul-dark text-slate-300 font-sans overflow-hidden">
       
-      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
+      {/* ── Sidebar Navigation ──────────────────────────────────────────────── */}
       <aside className="w-64 flex-shrink-0 bg-trixul-panel border-r border-slate-700 flex flex-col justify-between">
         <div>
           {/* Brand */}
           <div className="p-5 border-b border-slate-700">
             <h1 className="text-xl font-bold text-white tracking-wider flex items-center gap-2">
-              <Network className="w-6 h-6 text-trixul-accent" />
+              <Activity className="w-6 h-6 text-trixul-accent animate-pulse" />
               <span>TRIXUL</span>
             </h1>
-            <p className="text-xs text-slate-400 mt-1">Universal Management System</p>
+            <p className="text-xs text-slate-400 mt-1">Admin Command Center</p>
           </div>
 
-          {/* Navigation */}
+          {/* Links */}
           <nav className="p-4 space-y-1.5 overflow-y-auto">
             {NAV.map(({ to, label, icon: Icon }) => {
               const isSOS = to === '/incidents' && hasOpenSOS
@@ -74,7 +76,7 @@ export default function Layout({ children, hasOpenSOS }) {
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   <span className="flex-1">{label}</span>
                   {isSOS && (
-                    <span className="bg-trixul-danger text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                    <span className="bg-trixul-danger text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">
                       SOS
                     </span>
                   )}
@@ -92,10 +94,7 @@ export default function Layout({ children, hasOpenSOS }) {
             </div>
             <div className="overflow-hidden">
               <p className="text-xs font-semibold text-white truncate">Depot Manager</p>
-              <p className="text-[11px] text-trixul-success flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-trixul-success animate-ping"></span>
-                <span>System Online</span>
-              </p>
+              <p className="text-[11px] text-slate-400">Maharashtra Operational Grid</p>
             </div>
           </div>
         </div>
@@ -104,18 +103,18 @@ export default function Layout({ children, hasOpenSOS }) {
       {/* ── Main View Area ─────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         
-        {/* Top Header: Global Revenue & Fleet HUD */}
+        {/* Top Header: Persistent HUD */}
         <header className="bg-trixul-panel border-b border-slate-700 px-6 py-3 flex justify-between items-center h-20 flex-shrink-0">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Radio className="w-5 h-5 text-trixul-accent animate-pulse" />
-              <span>Control & Monitoring Center</span>
+              <Activity className="w-5 h-5 text-trixul-accent animate-pulse" />
+              <span>Command Center HUD</span>
             </h2>
-            <p className="text-xs text-slate-400">Maharashtra State Road Transport Operational Grid</p>
+            <p className="text-xs text-slate-400">Real-Time Fleet & Revenue Operations</p>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Revenue Stats HUD */}
+            {/* Total Revenue & Cash vs UPI Breakdown */}
             <div className="bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 flex items-center gap-4">
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Revenue Today</p>
@@ -138,12 +137,23 @@ export default function Layout({ children, hasOpenSOS }) {
               </div>
             </div>
 
-            {/* Active Fleet KPI */}
+            {/* Active Fleet Counter */}
             <div className="bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 flex items-center gap-3">
               <Bus className="w-5 h-5 text-trixul-success" />
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Active Fleet</p>
-                <p className="text-base font-bold text-trixul-success">{activeBuses} / {totalBuses || activeBuses}</p>
+                <p className="text-base font-bold text-trixul-success">{activeBuses} Active Buses</p>
+              </div>
+            </div>
+
+            {/* System Status: Online Indicator */}
+            <div className="bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 flex items-center gap-2.5">
+              <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-trixul-success animate-ping' : 'bg-trixul-danger'}`}></span>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">System Status</p>
+                <p className={`text-xs font-bold ${isOnline ? 'text-trixul-success' : 'text-trixul-danger'}`}>
+                  {isOnline ? 'ONLINE' : 'OFFLINE'}
+                </p>
               </div>
             </div>
           </div>

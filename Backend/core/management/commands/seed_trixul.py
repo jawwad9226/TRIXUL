@@ -3,109 +3,172 @@ from django.contrib.gis.geos import Point
 from core.models import Employee, Bus, Stop, Route, RouteStop, FareRule, Shift
 
 class Command(BaseCommand):
-    help = 'Seeds the database with realistic MSRTC route data for the live demo.'
+    help = 'Seeds the TRIXUL database with realistic MSRTC Maharashtra route data.'
 
     def handle(self, *args, **kwargs):
-        self.stdout.write("Starting database seeding...")
+        self.stdout.write(self.style.WARNING("🚌 Starting TRIXUL database seeding..."))
 
-        # 1. Create Conductors
-        emp, _ = Employee.objects.get_or_create(
-            emp_id="cond-1001",
-            defaults={"name": "Suresh Patil", "role": "Conductor", "contact": "9876543210"}
-        )
-        Employee.objects.get_or_create(
-            emp_id="cond-1002",
-            defaults={"name": "Ramesh Kulkarni", "role": "Conductor", "contact": "9876543211"}
-        )
-        Employee.objects.get_or_create(
-            emp_id="cond-1003",
-            defaults={"name": "Sachin Gaikwad", "role": "Conductor", "contact": "9876543212"}
-        )
-        self.stdout.write("Created Conductors: Suresh Patil, Ramesh Kulkarni, Sachin Gaikwad")
-
-        # 2. Create Buses (45 seated + 11 standing)
-        bus, _ = Bus.objects.get_or_create(
-            bus_id="bus-101",
-            defaults={"registration_number": "MH-30-AB-1234", "capacity_total": 56}
-        )
-        Bus.objects.get_or_create(
-            bus_id="bus-102",
-            defaults={"registration_number": "MH-14-CC-5555", "capacity_total": 56}
-        )
-        Bus.objects.get_or_create(
-            bus_id="bus-103",
-            defaults={"registration_number": "MH-12-XY-9876", "capacity_total": 56}
-        )
-        self.stdout.write("Created Buses: MH-30-AB-1234, MH-14-CC-5555, MH-12-XY-9876")
-
-        # 3. Create Real-World Stops (Longitude, Latitude format for PostGIS)
-        stops_data = [
-            {"stop_id": "STP-AKL", "stop_name": "Akola Bus Stand", "coords": (76.9981, 20.7095)},
-            {"stop_id": "STP-SHG", "stop_name": "Shegaon", "coords": (76.6875, 20.7964)},
-            {"stop_id": "STP-MLK", "stop_name": "Malkapur", "coords": (76.2230, 20.8853)},
-            {"stop_id": "STP-BSL", "stop_name": "Bhusawal", "coords": (75.7851, 21.0437)},
-            {"stop_id": "STP-PUN", "stop_name": "Pune Swargate", "coords": (73.8567, 18.5204)},
+        # ── 1. Conductors ───────────────────────────────────────────────────
+        conductors_data = [
+            {"emp_id": "cond-1001", "name": "Suresh Patil",    "contact": "9876543210"},
+            {"emp_id": "cond-1002", "name": "Ramesh Kulkarni", "contact": "9876543211"},
+            {"emp_id": "cond-1003", "name": "Sachin Gaikwad",  "contact": "9876543212"},
+            {"emp_id": "cond-1004", "name": "Amit Shirsat",    "contact": "9876543213"},
         ]
+        for c in conductors_data:
+            Employee.objects.get_or_create(
+                emp_id=c["emp_id"],
+                defaults={"name": c["name"], "role": "Conductor", "contact": c["contact"]}
+            )
+        self.stdout.write("  ✅ Created 4 Conductors")
 
-        stops_dict = {}
+        # ── 2. Buses (45 seated + 11 standing = 56 total) ───────────────────
+        buses_data = [
+            {"bus_id": "bus-101", "registration_number": "MH-30-AB-1234", "capacity_total": 56},
+            {"bus_id": "bus-102", "registration_number": "MH-14-CC-5555", "capacity_total": 56},
+            {"bus_id": "bus-103", "registration_number": "MH-12-XY-9876", "capacity_total": 56},
+            {"bus_id": "bus-104", "registration_number": "MH-30-BK-7777", "capacity_total": 56},
+        ]
+        buses = {}
+        for b in buses_data:
+            bus, _ = Bus.objects.get_or_create(
+                bus_id=b["bus_id"],
+                defaults={"registration_number": b["registration_number"], "capacity_total": b["capacity_total"]}
+            )
+            buses[b["bus_id"]] = bus
+        self.stdout.write("  ✅ Created 4 Buses (56-capacity MSRTC standard)")
+
+        # ── 3. All Stops with verified GPS coordinates ───────────────────────
+        # Coordinates are (longitude, latitude) — PostGIS Point(lon, lat)
+        stops_data = [
+            # Vidarbha Region (Akola district belt)
+            {"stop_id": "STP-AKL",  "stop_name": "Akola Bus Stand",        "coords": (77.0022, 20.7002)},
+            {"stop_id": "STP-MRT",  "stop_name": "Murtizapur",             "coords": (76.6765, 20.7325)},
+            {"stop_id": "STP-KAR",  "stop_name": "Karanja (Lad)",          "coords": (77.4826, 20.4836)},
+            {"stop_id": "STP-SHG",  "stop_name": "Shegaon Bus Stand",      "coords": (76.6908, 20.7932)},
+            {"stop_id": "STP-KHG",  "stop_name": "Khamgaon Bus Stand",     "coords": (76.5700, 20.7055)},
+            {"stop_id": "STP-JLG",  "stop_name": "Jalgaon City Bus Stand", "coords": (75.5626, 21.0051)},
+            {"stop_id": "STP-MLK",  "stop_name": "Malkapur Bus Stand",     "coords": (76.2023, 20.8872)},
+            {"stop_id": "STP-BSL",  "stop_name": "Bhusawal Bus Stand",     "coords": (75.7952, 21.0455)},
+            {"stop_id": "STP-MAN",  "stop_name": "Manmad Junction",        "coords": (74.4411, 20.2516)},
+            {"stop_id": "STP-NSK",  "stop_name": "Nashik CBS",             "coords": (73.7898, 19.9975)},
+            {"stop_id": "STP-PUN",  "stop_name": "Pune Swargate",          "coords": (73.8588, 18.5018)},
+            {"stop_id": "STP-MUM",  "stop_name": "Mumbai Central ST",      "coords": (72.8213, 18.9696)},
+        ]
+        stops = {}
         for s in stops_data:
             stop, _ = Stop.objects.get_or_create(
                 stop_id=s["stop_id"],
-                defaults={"stop_name": s["stop_name"], "gps_location": Point(s["coords"])}
+                defaults={
+                    "stop_name": s["stop_name"],
+                    "gps_location": Point(s["coords"][0], s["coords"][1], srid=4326),
+                }
             )
-            stops_dict[s["stop_id"]] = stop
-        self.stdout.write("Created Stops: Akola, Shegaon, Malkapur, Bhusawal, Pune")
+            stops[s["stop_id"]] = stop
+        self.stdout.write(f"  ✅ Created {len(stops_data)} Stops with verified GPS coordinates")
 
-        # 4. Create the Routes
-        route, _ = Route.objects.get_or_create(
-            route_id="route-102",
-            defaults={"route_name": "Akola - Pune (Via Bhusawal)"}
-        )
-        route_shuttle, _ = Route.objects.get_or_create(
-            route_id="route-101",
-            defaults={"route_name": "Akola - Shegaon Shuttle"}
-        )
-        self.stdout.write(f"Created Routes: {route.route_name}, {route_shuttle.route_name}")
-
-        # 5. Map the Stops to the Routes with accurate distances
-        route_stops = [
-            (stops_dict["STP-AKL"], 1, 0.0),
-            (stops_dict["STP-SHG"], 2, 42.5),
-            (stops_dict["STP-MLK"], 3, 53.1),
-            (stops_dict["STP-BSL"], 4, 48.2),
-            (stops_dict["STP-PUN"], 5, 385.0),
+        # ── 4. Routes & their stop sequences ────────────────────────────────
+        routes_config = [
+            {
+                "route_id": "route-101",
+                "route_name": "Akola - Shegaon Shuttle",
+                "base_fare": "10.00",
+                "per_km_rate": "1.50",
+                "stops": [
+                    ("STP-AKL", 1, 0.0),
+                    ("STP-SHG", 2, 42.5),
+                ],
+            },
+            {
+                "route_id": "route-102",
+                "route_name": "Akola - Pune (Via Bhusawal)",
+                "base_fare": "10.00",
+                "per_km_rate": "1.50",
+                "stops": [
+                    ("STP-AKL", 1,   0.0),
+                    ("STP-SHG", 2,  42.5),
+                    ("STP-MLK", 3,  95.6),
+                    ("STP-BSL", 4, 143.8),
+                    ("STP-MAN", 5, 243.0),
+                    ("STP-NSK", 6, 290.5),
+                    ("STP-PUN", 7, 528.8),
+                ],
+            },
+            {
+                "route_id": "route-103",
+                "route_name": "Akola - Khamgaon Express",
+                "base_fare": "10.00",
+                "per_km_rate": "1.50",
+                "stops": [
+                    ("STP-AKL", 1,  0.0),
+                    ("STP-KHG", 2, 38.0),
+                ],
+            },
+            {
+                "route_id": "route-104",
+                "route_name": "Akola - Jalgaon (Via Bhusawal)",
+                "base_fare": "10.00",
+                "per_km_rate": "1.50",
+                "stops": [
+                    ("STP-AKL", 1,   0.0),
+                    ("STP-SHG", 2,  42.5),
+                    ("STP-MLK", 3,  95.6),
+                    ("STP-BSL", 4, 143.8),
+                    ("STP-JLG", 5, 169.3),
+                ],
+            },
+            {
+                "route_id": "route-105",
+                "route_name": "Bhusawal - Mumbai Express",
+                "base_fare": "15.00",
+                "per_km_rate": "1.80",
+                "stops": [
+                    ("STP-BSL", 1,   0.0),
+                    ("STP-MAN", 2,  99.2),
+                    ("STP-NSK", 3, 146.7),
+                    ("STP-MUM", 4, 332.5),
+                ],
+            },
         ]
 
-        for stop, seq, dist in route_stops:
-            RouteStop.objects.get_or_create(
-                route_id=route.route_id,
-                stop_id=stop.stop_id,
-                defaults={"sequence": seq, "distance_km": dist}
+        for rc in routes_config:
+            route, _ = Route.objects.get_or_create(
+                route_id=rc["route_id"],
+                defaults={"route_name": rc["route_name"]}
             )
+            FareRule.objects.get_or_create(
+                route=route,
+                defaults={"base_fare": rc["base_fare"], "per_km_rate": rc["per_km_rate"]}
+            )
+            for stop_id, seq, dist_km in rc["stops"]:
+                RouteStop.objects.get_or_create(
+                    route=route,
+                    stop=stops[stop_id],
+                    defaults={"sequence": seq, "distance_km": dist_km}
+                )
+            self.stdout.write(f"  ✅ Route {rc['route_id']}: {rc['route_name']} ({len(rc['stops'])} stops)")
 
-        # Map shuttle stops (Akola -> Shegaon)
-        RouteStop.objects.get_or_create(route_id="route-101", stop_id="STP-AKL", defaults={"sequence": 1, "distance_km": 0.0})
-        RouteStop.objects.get_or_create(route_id="route-101", stop_id="STP-SHG", defaults={"sequence": 2, "distance_km": 42.5})
-        FareRule.objects.get_or_create(route_id="route-101", defaults={"base_fare": 10.00, "per_km_rate": 1.50})
-        self.stdout.write("Mapped stops to Routes with realistic distances.")
+        # ── 5. Active Shifts (one per conductor/bus pair) ────────────────────
+        shifts_data = [
+            {"shift_id": "shift-001", "emp_id": "cond-1001", "bus_id": "bus-101", "route_id": "route-102"},
+            {"shift_id": "shift-002", "emp_id": "cond-1002", "bus_id": "bus-102", "route_id": "route-101"},
+            {"shift_id": "shift-003", "emp_id": "cond-1003", "bus_id": "bus-103", "route_id": "route-103"},
+        ]
+        for sd in shifts_data:
+            Shift.objects.get_or_create(
+                shift_id=sd["shift_id"],
+                defaults={
+                    "emp": Employee.objects.get(emp_id=sd["emp_id"]),
+                    "bus": buses[sd["bus_id"]],
+                    "route": Route.objects.get(route_id=sd["route_id"]),
+                    "status": "Active"
+                }
+            )
+        self.stdout.write("  ✅ Created 3 Active Shifts")
 
-        # 6. Create Fare Rules
-        FareRule.objects.get_or_create(
-            route_id=route.route_id,
-            defaults={"base_fare": 10.00, "per_km_rate": 1.50}
-        )
-        self.stdout.write("Applied Fare Rules: Base ₹10 + ₹1.50/km")
-
-        # 7. Create Active Shift linking Employee, Bus, and Route
-        shift, created = Shift.objects.get_or_create(
-            shift_id="shift-001",
-            defaults={
-                "emp": emp,
-                "bus": bus,
-                "route": route,
-                "status": "Active"
-            }
-        )
-        self.stdout.write(f"Created Shift: {shift.shift_id} (Active on {route.route_name})")
-
-        self.stdout.write(self.style.SUCCESS("✅ Database successfully seeded with real-world demo data!"))
+        self.stdout.write(self.style.SUCCESS(
+            "\n🎉 Database seeded with TRIXUL demo data!\n"
+            "   • 4 conductors  • 4 buses  • 12 stops\n"
+            "   • 5 routes with fare rules  • 3 active shifts\n"
+            "   Run the Admin Dashboard to see live telemetry."
+        ))

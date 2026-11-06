@@ -1,9 +1,9 @@
 # TRIXUL Project Memory Scratchpad
 
 ## Current Focus & Status
-- **Active Sprint:** Stage 3 (Admin Command Center Integration) & ETM Ground-Truth Handshake
+- **Active Sprint:** Stage 3 (Admin Command Center Hardening & Critical Technical Fixes)
 - **Target Component:** Full Stack Monorepo (`Backend`, `ETM-Interface`, `Admin-Dashboard`)
-- **Initialized At:** 2026-11-06 (Post-Rule Initialization Protocol)
+- **Master Plan Source:** `MASTER_EXECUTION_LOG.md` (Synchronized)
 
 ---
 
@@ -18,6 +18,11 @@
 - [x] All REST POST endpoints validated strictly via DRF Serializers before service execution.
 - [x] Idempotent data seeding via `core/management/commands/seed_trixul.py` using `get_or_create()`.
 - [x] Safe environment template `Backend/.env.example` created.
+- [x] Shift closure endpoint implemented (`POST /api/v1/admin/shifts/<shift_id>/close/`).
+- [x] Incident State Machine API: `PATCH /api/v1/admin/incidents/<id>/acknowledge/` & resolve.
+- [x] Mid-shift bus swap endpoint (`POST /api/v1/admin/shifts/<id>/reassign-bus/`).
+- [ ] WebSockets via Django Channels (`asgi.py`, channels routing) for real-time fleet push.
+- [ ] ETM Batch Ingestion API (`POST /api/v1/sync/batch/`).
 
 ### 2. ETM-Interface (`ETM-Interface/`)
 - [x] Zero-mock architecture — All actions communicate directly with PostgreSQL backend via Axios client.
@@ -27,15 +32,22 @@
 - [x] Fare table lookup by stop ID / stop name with distance-based dynamic fallback.
 - [x] Emergency SOS broadcast integrated directly to backend `/api/v1/admin/incidents/` with offline storage fallback.
 - [x] Conductor end-of-shift reconciliation card with Cash vs UPI split in Ticket History.
+- [ ] Refine "Slide to SOS" gesture component for rough highway roads.
+- [ ] Integrate `@react-native-community/netinfo` for automated Offline/Online state indicator.
 
 ### 3. Admin-Dashboard (`Admin-Dashboard/`)
 - [x] Standalone sub-project (React 18 + Vite + Tailwind CSS + Leaflet + Recharts + Lucide).
 - [x] Persistent Global Revenue HUD & Active Fleet KPI banner in header across all pages.
-- [x] CartoDB Dark Matter Leaflet map with pulsing real-time bus telemetry markers (10s cadence).
-- [x] AI Health Engine & Alert Stream: Demand Surge detection (short-trip deployment trigger), excessive idling telematics, and active SOS triage.
-- [x] Instant Shift Assignment connected directly to database conductors, buses, and routes (`/api/v1/admin/dispatch-options/`).
-- [x] Route Volume & Occupancy Chart with standard 45-seated capacity threshold line.
-- [x] Production build clean (`npm run build` with 0 errors).
+- [x] CartoDB Dark Matter Leaflet map with pulsing real-time bus telemetry markers.
+- [x] 1-Click Short-Trip Deployment UI (Demand Surge Card) for depot managers.
+- [x] Route Volume & Occupancy Chart with standard 45-passenger red-line threshold.
+- [x] Instant Shift Assignment connected directly to database conductors, buses, and routes.
+- [x] Incident action controls ("Acknowledge Alert" / "Resolve") to silence flashing SOS alarms.
+- [x] Mid-Shift Bus Swap UI inside Shift Management tab.
+- [x] Visual Route & Stop Builder with direct map-click pin extraction and real-time route polyline linking.
+- [x] Switched all maps from watermarked CartoDB tiles to clean OpenStreetMap tiles.
+- [ ] WebSocket client hook for live radar stream (migrating from 10s polling).
+- [ ] Dynamic Fare Control toggle panel (pushing concession/discount rates to active ETMs).
 
 ---
 
@@ -43,11 +55,12 @@
 - **Monorepo Boundaries:** No Node dependencies in `Backend/`, no Django code in frontends.
 - **Data Integrity:** Absolutely zero fake/mock data layers (`mockApi.js`, `mockData.js`). All states pull from live PostgreSQL queries.
 - **Contract Enforcement:** Backend `snake_case` serialized into frontend models or normalized at service boundaries.
-- **Hardware Agnostic:** ETM and Admin run pure web/mobile software stack; physical thermal printer / NFC drivers deferred to hardware integration phase.
+- **Incident State Machine:** Incidents must progress `OPEN` -> `ACKNOWLEDGED` -> `RESOLVED`.
+- **Engineering Scaling Rule:** Push real-time fleet GPS via WebSockets (Django Channels) rather than HTTP polling at scale.
 
 ---
 
-## Active Blockers & Known Issues
-- [ ] **Real-time WebSockets:** Backend currently serves telemetry and fleet updates via 10-second polling cadence. Future sprint to introduce `channels` + `daphne` ASGI layer.
-- [ ] **Network State Indicator:** Install `@react-native-community/netinfo` in ETM-Interface to dynamically display `OFFLINE (X queued)` during highway dead zones.
-- [ ] **Batch Sync Endpoint:** Add `POST /api/v1/sync/batch/` on backend for atomic flush of queued offline tickets when returning from connectivity dead zones.
+## Active Immediate Tasks (Stage 3 Technical Fixes)
+1. **Incident State Machine (`PATCH /api/v1/admin/incidents/<id>/status/`)**: Allow admin to Acknowledge/Resolve alarms to prevent alert fatigue.
+2. **Mid-Shift Reassignment Protocol**: Enable bus swaps on breakdowns without resetting shift revenue logs.
+3. **Django Channels & WebSocket Setup**: ASGI upgrade for real-time fleet push.

@@ -3,12 +3,36 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services import (
     RouteService, TelemetryService, TicketingService,
-    AdminFleetService, AdminShiftService, AdminRevenueService, AdminIncidentService
+    AdminFleetService, AdminShiftService, AdminRevenueService, AdminIncidentService,
+    AdminRouteManagementService,
 )
 from .serializers import (
     HeartbeatSerializer, TicketIssueSerializer, ConductorAuthSerializer,
     ShiftCreateSerializer, IncidentCreateSerializer
 )
+
+from rest_framework_simplejwt.views import TokenViewBase
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework import serializers
+
+class CustomTokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+    access = serializers.CharField(read_only=True)
+
+    def validate(self, attrs):
+        try:
+            refresh = RefreshToken(attrs['refresh'])
+            data = {'access': str(refresh.access_token)}
+            return data
+        except Exception as e:
+            raise serializers.ValidationError(str(e))
+
+
+class CustomTokenRefreshView(TokenViewBase):
+    authentication_classes = []
+    permission_classes = []
+    serializer_class = CustomTokenRefreshSerializer
+
 
 class ConductorLoginView(APIView):
     # THIS IS THE MAGIC FIX FOR THE 401 ERROR:
@@ -130,3 +154,80 @@ class AdminIncidentView(APIView):
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
             return Response(result, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminIncidentAcknowledgeView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def patch(self, request, incident_id):
+        """PATCH /api/v1/admin/incidents/<incident_id>/acknowledge/ — Acknowledge an incident"""
+        result = AdminIncidentService.acknowledge_incident(incident_id)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class AdminShiftReassignBusView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, shift_id):
+        """POST /api/v1/admin/shifts/<shift_id>/reassign-bus/ — Mid-shift bus swap"""
+        new_bus_id = request.data.get('new_bus_id') or request.data.get('bus_id')
+        if not new_bus_id:
+            return Response({"status": "error", "message": "new_bus_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        result = AdminShiftService.reassign_bus(shift_id, new_bus_id)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+
+
+class AdminRouteListView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        """GET /api/v1/admin/routes/ — All routes with stops and fare rules"""
+        return Response(AdminRouteManagementService.list_routes(), status=status.HTTP_200_OK)
+
+
+class AdminRouteCreateView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """POST /api/v1/admin/routes/ — Create a new route with stops and fare rule"""
+        required = ['route_id', 'route_name', 'stops']
+        for field in required:
+            if not request.data.get(field):
+                return Response({"status": "error", "message": f"'{field}' is required."}, status=status.HTTP_400_BAD_REQUEST)
+        result = AdminRouteManagementService.create_route(request.data)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class AdminStopListView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        """GET /api/v1/admin/stops/ — All registered GPS stops"""
+        return Response(AdminRouteManagementService.list_stops(), status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """POST /api/v1/admin/stops/ — Register new stop from visual map click"""
+        stop_name = request.data.get('stop_name')
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        if not stop_name or latitude is None or longitude is None:
+            return Response(
+                {"status": "error", "message": "stop_name, latitude, and longitude are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        result = AdminRouteManagementService.create_stop(request.data)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_201_CREATED)

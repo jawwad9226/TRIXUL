@@ -209,6 +209,127 @@ class TicketingService:
 
 
 # ============================================================
+# STAGE 3 — Admin Route Management Service
+# ============================================================
+
+class AdminRouteManagementService:
+    @staticmethod
+    def list_routes():
+        """Returns all routes with their stops and fare rules."""
+        routes = Route.objects.prefetch_related('route_stops__stop', 'fare_rules').all().order_by('route_id')
+        result = []
+        for r in routes:
+            fare_rule = r.fare_rules.first()
+            route_stops = r.route_stops.select_related('stop').order_by('sequence')
+            result.append({
+                "route_id": r.route_id,
+                "route_name": r.route_name,
+                "fare_rule": {
+                    "base_fare": float(fare_rule.base_fare) if fare_rule else None,
+                    "per_km_rate": float(fare_rule.per_km_rate) if fare_rule else None,
+                },
+                "stops": [
+                    {
+                        "stop_id": rs.stop.stop_id,
+                        "stop_name": rs.stop.stop_name,
+                        "sequence": rs.sequence,
+                        "distance_km": rs.distance_km,
+                        "latitude": rs.stop.gps_location.y if rs.stop.gps_location else None,
+                        "longitude": rs.stop.gps_location.x if rs.stop.gps_location else None,
+                    }
+                    for rs in route_stops
+                ],
+            })
+        return result
+
+    @staticmethod
+    def create_route(data):
+        """
+        Creates a Route, its Stop sequence, and FareRule in one call.
+        payload: { route_id, route_name, base_fare, per_km_rate, stops: [{stop_id, stop_name, sequence, distance_km, latitude, longitude}] }
+        """
+        from decimal import Decimal
+        route_id = data["route_id"]
+        if Route.objects.filter(route_id=route_id).exists():
+            return {"status": "error", "message": f"Route {route_id} already exists."}
+
+        route = Route.objects.create(route_id=route_id, route_name=data["route_name"])
+        FareRule.objects.create(
+            route=route,
+            base_fare=Decimal(str(data.get("base_fare", "10.00"))),
+            per_km_rate=Decimal(str(data.get("per_km_rate", "1.50"))),
+        )
+
+        for s in data.get("stops", []):
+            stop, _ = Stop.objects.get_or_create(
+                stop_id=s["stop_id"],
+                defaults={
+                    "stop_name": s["stop_name"],
+                    "gps_location": Point(float(s["longitude"]), float(s["latitude"]), srid=4326),
+                }
+            )
+            RouteStop.objects.get_or_create(
+                route=route,
+                stop=stop,
+                defaults={"sequence": s["sequence"], "distance_km": float(s["distance_km"])},
+            )
+
+        return {
+            "status": "success",
+            "route_id": route.route_id,
+            "route_name": route.route_name,
+            "stops_created": len(data.get("stops", [])),
+            "message": f"Route {route_id} created with {len(data.get('stops', []))} stops.",
+        }
+
+    @staticmethod
+    def list_stops():
+        """Returns all registered stops for reference."""
+        return [
+            {
+                "stop_id": s.stop_id,
+                "stop_name": s.stop_name,
+                "latitude": s.gps_location.y if s.gps_location else None,
+                "longitude": s.gps_location.x if s.gps_location else None,
+            }
+            for s in Stop.objects.all().order_by("stop_name")
+        ]
+
+    @staticmethod
+    def create_stop(data):
+        """Creates or updates a single stop with GPS location from map click."""
+        import re, uuid
+        stop_name = data.get('stop_name')
+        lat = float(data.get('latitude'))
+        lng = float(data.get('longitude'))
+        stop_id = data.get('stop_id')
+        if not stop_id:
+            clean_prefix = re.sub(r'[^A-Za-z0-9]', '', stop_name)[:3].upper() or "STP"
+            stop_id = f"STP-{clean_prefix}-{str(uuid.uuid4().int)[:4]}"
+
+        stop, created = Stop.objects.get_or_create(
+            stop_id=stop_id,
+            defaults={
+                "stop_name": stop_name,
+                "gps_location": Point(lng, lat, srid=4326),
+            }
+        )
+        if not created:
+            stop.stop_name = stop_name
+            stop.gps_location = Point(lng, lat, srid=4326)
+            stop.save()
+
+        return {
+            "status": "success",
+            "stop_id": stop.stop_id,
+            "stop_name": stop.stop_name,
+            "latitude": stop.gps_location.y,
+            "longitude": stop.gps_location.x,
+            "message": f"Stop '{stop_name}' registered successfully."
+        }
+
+
+# ============================================================
 # STAGE 3 — Admin Command Center Services
 # ============================================================
 
@@ -466,6 +587,37 @@ class AdminShiftService:
 
         return {"status": "success", "shift_id": shift_id, "message": "Shift closed"}
 
+    @staticmethod
+    def reassign_bus(shift_id, new_bus_id):
+        """Swaps the assigned bus mid-route for a breakdown or emergency without losing shift data."""
+        try:
+            shift = Shift.objects.get(shift_id=shift_id)
+        except Shift.DoesNotExist:
+            return {"status": "error", "message": "Shift not found"}
+
+        if shift.status != 'Active':
+            return {"status": "error", "message": "Cannot reassign a non-active shift"}
+
+        try:
+            new_bus = Bus.objects.get(bus_id=new_bus_id)
+        except Bus.DoesNotExist:
+            return {"status": "error", "message": f"Bus {new_bus_id} not found"}
+
+        # Release target bus if currently bound to any active shift
+        Shift.objects.filter(bus=new_bus, status='Active').exclude(shift_id=shift_id).update(status='Completed')
+
+        old_bus_number = shift.bus.registration_number
+        shift.bus = new_bus
+        shift.save(update_fields=['bus'])
+
+        return {
+            "status": "success",
+            "shift_id": shift_id,
+            "old_bus": old_bus_number,
+            "new_bus": new_bus.registration_number,
+            "message": f"Bus dynamically swapped from {old_bus_number} to {new_bus.registration_number} for shift {shift_id}."
+        }
+
 
 class AdminRevenueService:
     @staticmethod
@@ -593,4 +745,22 @@ class AdminIncidentService:
             "incident_id": incident.incident_id,
             "severity": incident.severity,
             "message": "Incident logged. Admin dashboard alerted."
+        }
+
+    @staticmethod
+    def acknowledge_incident(incident_id):
+        """Silences the incident in the command center UI by marking it ACKNOWLEDGED."""
+        try:
+            incident = Incident.objects.get(incident_id=incident_id)
+        except Incident.DoesNotExist:
+            return {"status": "error", "message": "Incident not found"}
+
+        incident.status = 'ACKNOWLEDGED'
+        incident.save(update_fields=['status'])
+
+        return {
+            "status": "success",
+            "incident_id": incident_id,
+            "incident_status": "ACKNOWLEDGED",
+            "message": f"Incident {incident_id} acknowledged and silenced."
         }
