@@ -62,3 +62,17 @@ class TicketIssueSerializer(serializers.Serializer):
     total_fare = serializers.DecimalField(max_digits=10, decimal_places=2)
     payment_method = serializers.CharField(max_length=50, required=False)
     timestamp = serializers.DateTimeField()
+
+
+class ShiftCreateSerializer(serializers.Serializer):
+    emp_id = serializers.CharField(max_length=50)
+    bus_id = serializers.CharField(max_length=50)
+    route_id = serializers.CharField(max_length=50)
+
+
+class IncidentCreateSerializer(serializers.Serializer):
+    shift_id = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    severity = serializers.ChoiceField(choices=['SOS', 'WARNING', 'INFO'], default='SOS')
+    message = serializers.CharField()
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)

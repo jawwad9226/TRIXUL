@@ -138,4 +138,18 @@ export const fetchRouteData = async (routeId) => {
   return response.data;
 };
 
+/**
+ * Incident Service (Stage 3)
+ * @param {Object} payload
+ * @param {string} [payload.shift_id]
+ * @param {string} payload.severity - 'SOS' | 'WARNING' | 'INFO'
+ * @param {string} payload.message
+ * @param {number} [payload.latitude]
+ * @param {number} [payload.longitude]
+ */
+export const reportIncident = async (payload) => {
+  const response = await apiClient.post('/api/v1/admin/incidents/', payload);
+  return response.data;
+};
+
 export default apiClient;

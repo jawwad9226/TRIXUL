@@ -11,6 +11,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { submitEmergencyLocally } from "../store/slices/alertSlice";
+import { reportIncident } from "../services/api";
 
 export const EmergencyAlertScreen = () => {
   const dispatch = useAppDispatch();
@@ -55,14 +56,37 @@ export const EmergencyAlertScreen = () => {
         timestamp: new Date().toISOString(),
       };
 
-      // Store locally and dispatch to Redux state
-      // TODO: POST to backend emergency endpoint when available
-      dispatch(submitEmergencyLocally(alertRecord));
+      // Map alertType to backend severity ('SOS', 'WARNING', 'INFO')
+      let severity = "WARNING";
+      if (alertType === "Accident" || alertType === "Emergency Support") {
+        severity = "SOS";
+      } else if (alertType === "Breakdown" || alertType === "Road Blockage") {
+        severity = "WARNING";
+      }
 
-      Alert.alert(
-        "Alert recorded",
-        "Emergency has been logged locally. Connect to backend for live dispatch."
-      );
+      // Try broadcasting to backend Admin Command Center
+      try {
+        await reportIncident({
+          shift_id: conductorProfile.shiftId,
+          severity,
+          message: `[${alertType}] ${message}`,
+          latitude: gpsLocation.latitude,
+          longitude: gpsLocation.longitude,
+        });
+        Alert.alert(
+          "🚨 Emergency Broadcasted",
+          "Alert dispatched live to Admin Command Center & Depot."
+        );
+      } catch (backendError) {
+        // Fallback for dead zones
+        Alert.alert(
+          "Alert Recorded Locally",
+          "Backend unreachable or offline. Emergency saved to device and will sync on reconnection."
+        );
+      }
+
+      // Store in local Redux state
+      dispatch(submitEmergencyLocally(alertRecord));
       setMessage("");
     } catch (error) {
       Alert.alert(

@@ -47,12 +47,36 @@ class Shift(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
 
 class Ticket(models.Model):
+    PAYMENT_CHOICES = (
+        ('CASH', 'Cash'),
+        ('UPI', 'UPI'),
+    )
     ticket_id = models.CharField(max_length=50, primary_key=True)
     shift = models.ForeignKey(Shift, on_delete=models.CASCADE)
     source_stop = models.ForeignKey(Stop, related_name='tickets_from', on_delete=models.CASCADE)
     dest_stop = models.ForeignKey(Stop, related_name='tickets_to', on_delete=models.CASCADE)
     passenger_count = models.IntegerField()
     total_fare = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=10, choices=PAYMENT_CHOICES, default='CASH')
+    timestamp = models.DateTimeField()
+
+class Incident(models.Model):
+    SEVERITY_CHOICES = (
+        ('SOS', 'Emergency SOS'),
+        ('WARNING', 'Warning'),
+        ('INFO', 'Info'),
+    )
+    STATUS_CHOICES = (
+        ('OPEN', 'Open'),
+        ('ACKNOWLEDGED', 'Acknowledged'),
+        ('RESOLVED', 'Resolved'),
+    )
+    incident_id = models.CharField(max_length=50, primary_key=True)
+    shift = models.ForeignKey(Shift, on_delete=models.CASCADE, related_name='incidents')
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES)
+    message = models.TextField()
+    location = models.PointField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='OPEN')
     timestamp = models.DateTimeField()
 
 class BusLocation(models.Model):
