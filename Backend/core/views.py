@@ -4,11 +4,12 @@ from rest_framework import status
 from .services import (
     RouteService, TelemetryService, TicketingService,
     AdminFleetService, AdminShiftService, AdminRevenueService, AdminIncidentService,
-    AdminRouteManagementService,
+    AdminRouteManagementService, FareControlService,
 )
 from .serializers import (
     HeartbeatSerializer, TicketIssueSerializer, ConductorAuthSerializer,
-    ShiftCreateSerializer, IncidentCreateSerializer
+    ShiftCreateSerializer, IncidentCreateSerializer,
+    BatchTicketSyncSerializer, FareControlSerializer,
 )
 
 from rest_framework_simplejwt.views import TokenViewBase
@@ -72,6 +73,34 @@ class TicketIssueView(APIView):
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
             return Response(result, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BatchTicketSyncView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """POST /api/v1/sync/batch/ — Stage 1 & 2 Batch Ingestion for offline ETM sync"""
+        serializer = BatchTicketSyncSerializer(data=request.data)
+        if serializer.is_valid():
+            result = TicketingService.batch_issue_tickets(serializer.validated_data)
+            if result.get("status") == "error":
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            return Response(result, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ShiftTicketSummaryView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, shift_id):
+        """GET /api/v1/ticketing/shift/<shift_id>/summary/ — Live shift tickets & cash/UPI reconciliation"""
+        result = TicketingService.get_shift_ticket_summary(shift_id)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        return Response(result, status=status.HTTP_200_OK)
+
 
 
 # ============================================================
@@ -231,3 +260,21 @@ class AdminStopListView(APIView):
         if result.get("status") == "error":
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+class AdminFareControlView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        """GET /api/v1/admin/fare-controls/ — List all dynamic fare controls & discounts"""
+        return Response(FareControlService.get_fare_controls(), status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """POST /api/v1/admin/fare-controls/ — Update midday discount or fare rates across routes"""
+        serializer = FareControlSerializer(data=request.data)
+        if serializer.is_valid():
+            result = FareControlService.update_fare_control(serializer.validated_data)
+            return Response(result, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+

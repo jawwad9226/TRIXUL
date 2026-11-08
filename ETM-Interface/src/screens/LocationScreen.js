@@ -7,6 +7,7 @@ import { Screen } from "../components/Screen";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
+import { updateBusAssignment } from "../store/slices/conductorSlice";
 import { sendHeartbeat } from "../services/api";
 
 export const LocationScreen = () => {
@@ -67,6 +68,12 @@ export const LocationScreen = () => {
         // Send to backend and update Redux with real ETA from PostGIS
         const result = await sendHeartbeat(payload);
         if (active) {
+          if (result?.bus_number && result.bus_number !== profile?.busNumber) {
+            dispatch(updateBusAssignment({
+              busNumber: result.bus_number,
+              busId: result.bus_id,
+            }));
+          }
           dispatch(setBusStatus({
             current_stop: result.current_stop,
             next_stop: result.next_stop,

@@ -131,19 +131,32 @@ export const TicketBookingScreen = () => {
       };
 
       let ticketId = `TKT-${Date.now().toString().slice(-6)}`;
+      let isOfflineSaved = false;
       try {
         const response = await issueTicket(payload);
         if (response?.ticket_id) {
           ticketId = response.ticket_id;
         }
       } catch (apiErr) {
-        // Fall back gracefully to offline ticket generation
+        // Save to offline batch queue for auto-sync when network returns
+        isOfflineSaved = true;
+        await storage.enqueueOfflineTicket({
+          ticket_id: ticketId,
+          source_stop_id: payload.source_stop_id,
+          dest_stop_id: payload.dest_stop_id,
+          passenger_count: payload.passenger_count,
+          total_fare: payload.total_fare,
+          payment_method: payload.payment_method,
+          timestamp: payload.timestamp,
+        });
       }
 
       await dispatch(submitBooking({ ticket_id: ticketId })).unwrap();
       Alert.alert(
-        "Ticket Printed & Saved",
-        `Ticket #${ticketId} issued successfully for ${currency(fare.finalAmount)}.`
+        isOfflineSaved ? "Ticket Issued (Offline Queue)" : "Ticket Printed & Saved",
+        isOfflineSaved
+          ? `Ticket #${ticketId} saved to terminal storage. Will batch sync to Central Server on reconnection.`
+          : `Ticket #${ticketId} issued successfully for ${currency(fare.finalAmount)}.`
       );
     } catch (error) {
       Alert.alert(

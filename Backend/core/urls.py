@@ -6,6 +6,7 @@ from .views import (
     AdminFleetView, AdminShiftView, AdminShiftCloseView, AdminRevenueView, AdminIncidentView,
     AdminDispatchOptionsView, AdminIncidentAcknowledgeView, AdminShiftReassignBusView,
     AdminRouteListView, AdminRouteCreateView, AdminStopListView,
+    BatchTicketSyncView, ShiftTicketSummaryView, AdminFareControlView,
 )
 
 urlpatterns = [
@@ -17,6 +18,8 @@ urlpatterns = [
     path('api/v1/routes/<str:route_id>/', RouteInitializationView.as_view(), name='route_init'),
     path('api/v1/telemetry/heartbeat/', TelemetryHeartbeatView.as_view(), name='telemetry_heartbeat'),
     path('api/v1/ticketing/issue/', TicketIssueView.as_view(), name='ticket_issue'),
+    path('api/v1/sync/batch/', BatchTicketSyncView.as_view(), name='batch_ticket_sync'),
+    path('api/v1/ticketing/shift/<str:shift_id>/summary/', ShiftTicketSummaryView.as_view(), name='shift_ticket_summary'),
 
     # ── Admin Command Center (Stage 3) ─────────────────────────────────────────
     path('api/v1/admin/fleet/', AdminFleetView.as_view(), name='admin_fleet'),
@@ -27,6 +30,7 @@ urlpatterns = [
     path('api/v1/admin/revenue/', AdminRevenueView.as_view(), name='admin_revenue'),
     path('api/v1/admin/incidents/', AdminIncidentView.as_view(), name='admin_incidents'),
     path('api/v1/admin/incidents/<str:incident_id>/acknowledge/', AdminIncidentAcknowledgeView.as_view(), name='admin_incident_acknowledge'),
+    path('api/v1/admin/fare-controls/', AdminFareControlView.as_view(), name='admin_fare_controls'),
 
     # ── Route & Stop Master Data Management ────────────────────────────────────
     path('api/v1/admin/routes/', AdminRouteListView.as_view(), name='admin_routes_list'),

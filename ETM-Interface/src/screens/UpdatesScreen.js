@@ -1,5 +1,5 @@
-import React from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { FlatList, StyleSheet, Text, View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { EmptyState } from "../components/EmptyState";
@@ -7,13 +7,46 @@ import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { markUpdateComplete } from "../store/slices/updateSlice";
+import { setUpdates, markUpdateComplete } from "../store/slices/updateSlice";
+import { fetchActiveIncidents } from "../services/api";
+import { storage } from "../services/storage";
 import { timeLabel } from "../utils/format";
 
 export const UpdatesScreen = () => {
   const dispatch = useAppDispatch();
-  // Updates are stored in Redux (populated from backend when available)
   const items = useAppSelector((state) => state.updates.items);
+  const [loading, setLoading] = useState(false);
+
+  const loadIncidents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchActiveIncidents();
+      const rawIncidents = Array.isArray(data) ? data : [];
+      const mapped = rawIncidents.map((inc) => ({
+        id: inc.incident_id,
+        title: `[${inc.severity}] Bus ${inc.bus_number || "Grid Alert"} • ${inc.route_name || "Operational Sector"}`,
+        body: inc.message,
+        priority: inc.severity === "SOS" ? "High" : inc.severity === "WARNING" ? "Medium" : "Low",
+        category: inc.status === "OPEN" ? "Active Dispatch" : "Acknowledged Log",
+        timestamp: inc.timestamp,
+        unread: inc.status === "OPEN",
+        completed: inc.status !== "OPEN",
+      }));
+      dispatch(setUpdates(mapped));
+      await storage.saveUpdates(mapped);
+    } catch (err) {
+      // Keep cached updates
+    } finally {
+      setLoading(false);
+    }
+  }, [dispatch]);
+
+  useEffect(() => {
+    loadIncidents();
+    const interval = setInterval(loadIncidents, 15000);
+    return () => clearInterval(interval);
+  }, [loadIncidents]);
+
 
   return (
     <Screen showBack backTitle="Dashboard" scroll={false}>

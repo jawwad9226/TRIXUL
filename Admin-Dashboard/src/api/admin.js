@@ -37,3 +37,8 @@ export const fetchRoutes = () => client.get('/api/v1/admin/routes/')
 export const createRoute = (payload) => client.post('/api/v1/admin/routes/create/', payload)
 export const fetchStops = () => client.get('/api/v1/admin/stops/')
 export const createStop = (payload) => client.post('/api/v1/admin/stops/', payload)
+
+// ── Dynamic Fare Controls (Stage 3) ──────────────────────────────────────────
+export const fetchFareControls = () => client.get('/api/v1/admin/fare-controls/')
+export const updateFareControl = (payload) => client.post('/api/v1/admin/fare-controls/', payload)
+

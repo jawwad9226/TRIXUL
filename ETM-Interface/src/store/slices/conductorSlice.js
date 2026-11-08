@@ -14,6 +14,12 @@ const conductorSlice = createSlice({
     setProfile(state, action) {
       state.profile = action.payload;
     },
+    updateBusAssignment(state, action) {
+      if (state.profile) {
+        if (action.payload.busNumber) state.profile.busNumber = action.payload.busNumber;
+        if (action.payload.busId) state.profile.busId = action.payload.busId;
+      }
+    },
     setSyncStatus(state, action) {
       if (state.profile) {
         state.profile.syncStatus = action.payload;
@@ -22,5 +28,5 @@ const conductorSlice = createSlice({
   },
 });
 
-export const { setProfile, setSyncStatus } = conductorSlice.actions;
+export const { setProfile, updateBusAssignment, setSyncStatus } = conductorSlice.actions;
 export default conductorSlice.reducer;

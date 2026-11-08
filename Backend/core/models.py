@@ -34,6 +34,7 @@ class FareRule(models.Model):
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='fare_rules')
     base_fare = models.DecimalField(max_digits=10, decimal_places=2)
     per_km_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
 
 class Shift(models.Model):
     STATUS_CHOICES = (

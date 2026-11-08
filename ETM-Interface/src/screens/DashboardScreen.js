@@ -11,7 +11,9 @@ import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
-import { sendHeartbeat } from "../services/api";
+import { updateBusAssignment } from "../store/slices/conductorSlice";
+import { sendHeartbeat, batchSyncTickets } from "../services/api";
+import { storage } from "../services/storage";
 
 const cards = [
   {
@@ -76,25 +78,48 @@ export const DashboardScreen = ({ navigation }) => {
   const history = useAppSelector((state) => state.ticket.history || []);
   const loadingBus = useAppSelector((state) => state.bus.loading);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Background Auto-sync of Offline Tickets when connected
+  const syncOfflineQueue = async () => {
+    try {
+      const offlineTickets = await storage.loadOfflineTickets();
+      if (offlineTickets && offlineTickets.length > 0 && profile?.shiftId) {
+        await batchSyncTickets({
+          shift_id: profile.shiftId,
+          tickets: offlineTickets,
+        });
+        await storage.clearOfflineTickets();
+      }
+      setIsOnline(true);
+    } catch (err) {
+      setIsOnline(false);
+    }
+  };
 
   useEffect(() => {
     if (profile && route) {
       setLoading(false);
     } else {
-      const fallback = setTimeout(() => setLoading(false), 2000);
+      const fallback = setTimeout(() => setLoading(false), 1500);
       return () => clearTimeout(fallback);
     }
   }, [profile, route]);
 
-  // Passenger occupancy calculation:
-  // Base 36 + booked tickets count
+  useEffect(() => {
+    syncOfflineQueue();
+    const interval = setInterval(syncOfflineQueue, 20000);
+    return () => clearInterval(interval);
+  }, [profile?.shiftId]);
+
+  // Pure Live Passenger Occupancy Calculation from Real Database Records
   const bookedPassengers = history.reduce((acc, t) => {
     const c = t.passengerCounts || {};
     const sum = (c.women || 0) + (c.seniors || 0) + (c.children || 0) + (c.adultMale || 0);
-    return acc + (sum > 0 ? sum : 1);
+    return acc + (sum > 0 ? sum : (t.passengerCount || 1));
   }, 0);
-  const totalCapacity = 56; // 45 seated + 11 standing
-  const currentOccupancy = Math.min(totalCapacity + 4, 38 + bookedPassengers);
+  const totalCapacity = route?.capacity_total || 56;
+  const currentOccupancy = bookedPassengers;
 
   const occupancyTone =
     currentOccupancy > totalCapacity
@@ -113,8 +138,8 @@ export const DashboardScreen = ({ navigation }) => {
   const handleSendTelemetry = async () => {
     dispatch(setBusLoading(true));
     try {
-      let lat = 20.7095;
-      let lng = 76.9981;
+      let lat = route?.stops?.[0]?.latitude || 20.7002;
+      let lng = route?.stops?.[0]?.longitude || 77.0022;
       let spd = 38.5;
 
       try {
@@ -126,7 +151,7 @@ export const DashboardScreen = ({ navigation }) => {
           spd = loc.coords.speed || 38.5;
         }
       } catch (locErr) {
-        // Fallback to sample route GPS if GPS unavailable
+        // Fallback to route station coordinates if GPS hardware is unavailable
       }
 
       const payload = {
@@ -138,19 +163,29 @@ export const DashboardScreen = ({ navigation }) => {
       };
 
       const response = await sendHeartbeat(payload);
+      setIsOnline(true);
+
+      // Mid-Shift Bus Swap Detection
+      if (response?.bus_number && response.bus_number !== profile?.busNumber) {
+        dispatch(updateBusAssignment({
+          busNumber: response.bus_number,
+          busId: response.bus_id
+        }));
+      }
 
       dispatch(setBusStatus({
-        current_stop: response?.current_stop || route?.stops?.[0]?.name || "Akola",
+        current_stop: response?.current_stop || route?.stops?.[0]?.name || "Akola Bus Stand",
         next_stop: response?.next_stop || route?.stops?.[1]?.name || "Shegaon",
         eta_minutes: response?.eta_minutes || 8,
         condition: response?.condition || "Moving (Clear)",
         speed: payload.speed,
       }));
 
-      Alert.alert("Telemetry Synced", "Live GPS and route progress reported to dispatch.");
+      Alert.alert("Telemetry Synced", `Live GPS reported to dispatch. Bus: ${response?.bus_number || profile?.busNumber || "Active"}`);
     } catch (error) {
+      setIsOnline(false);
       dispatch(setBusError(error.message));
-      Alert.alert("Telemetry Notice", "GPS captured locally. Dispatch sync will retry.");
+      Alert.alert("Telemetry Notice", "GPS saved locally. Dispatch sync will retry when online.");
     } finally {
       dispatch(setBusLoading(false));
     }
@@ -201,17 +236,20 @@ export const DashboardScreen = ({ navigation }) => {
             <View style={{ flex: 1, paddingRight: spacing.md }}>
               <Text style={styles.kicker}>Smart ETM Command Center</Text>
               <Text style={styles.title}>
-                {profile?.conductorName ?? "Suresh Patil"}
+                {profile?.conductorName || "Active Conductor"}
               </Text>
               <Text style={styles.subtitle}>
-                {route?.route_name ?? "Akola - Pune (Via Bhusawal)"}
+                {route?.route_name || "Route In Transit"}
               </Text>
               <Text style={styles.shiftTag}>
-                Bus: {route?.busNumber ?? "MH-30-AB-1234"} • {profile?.shift ?? "Morning Shift"}
+                Bus: {profile?.busNumber || route?.busNumber || "Standby"} • Shift: {profile?.shiftId || "Active"}
               </Text>
             </View>
             <View style={styles.headerRight}>
-              <StatusBadge label="ONLINE" tone="success" />
+              <StatusBadge
+                label={isOnline ? "ONLINE" : "OFFLINE (CACHED)"}
+                tone={isOnline ? "success" : "warning"}
+              />
               <Pressable
                 onPress={() => navigation.navigate("Updates")}
                 style={styles.bellButton}

@@ -76,3 +76,26 @@ class IncidentCreateSerializer(serializers.Serializer):
     message = serializers.CharField()
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
+
+
+class BatchTicketItemSerializer(serializers.Serializer):
+    ticket_id = serializers.CharField(max_length=50, required=False)
+    source_stop_id = serializers.CharField(max_length=50)
+    dest_stop_id = serializers.CharField(max_length=50)
+    passenger_count = serializers.IntegerField(default=1)
+    total_fare = serializers.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = serializers.CharField(max_length=50, required=False, default='CASH')
+    timestamp = serializers.DateTimeField()
+
+
+class BatchTicketSyncSerializer(serializers.Serializer):
+    shift_id = serializers.CharField(max_length=50)
+    tickets = BatchTicketItemSerializer(many=True)
+
+
+class FareControlSerializer(serializers.Serializer):
+    route_id = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, required=False)
+    base_fare = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    per_km_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+

@@ -133,6 +133,49 @@ def test_issue_ticket_upi():
 
 results.append(("ETM: Issue Ticket UPI (POST /api/v1/ticketing/issue/)", *run_test("Issue Ticket [UPI]", test_issue_ticket_upi)))
 
+def test_batch_ticket_sync():
+    payload = {
+        "shift_id": "shift-001",
+        "tickets": [
+            {
+                "ticket_id": f"OFFLINE-TKT-{int(datetime.now().timestamp())}-1",
+                "source_stop_id": "STP-AKL",
+                "dest_stop_id": "STP-SHG",
+                "passenger_count": 2,
+                "total_fare": "85.00",
+                "payment_method": "CASH",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "ticket_id": f"OFFLINE-TKT-{int(datetime.now().timestamp())}-2",
+                "source_stop_id": "STP-SHG",
+                "dest_stop_id": "STP-MLK",
+                "passenger_count": 1,
+                "total_fare": "65.00",
+                "payment_method": "UPI",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+    }
+    resp = client.post("/api/v1/sync/batch/", payload, format="json")
+    passed = resp.status_code == 201 and resp.data.get("synced_count") == 2
+    return {"passed": passed, "status_code": resp.status_code, "synced_count": resp.data.get("synced_count")}
+
+results.append(("ETM: Batch Ingestion API (POST /api/v1/sync/batch/)", *run_test("Offline Ticket Batch Ingestion", test_batch_ticket_sync)))
+
+def test_shift_ticket_summary():
+    resp = client.get("/api/v1/ticketing/shift/shift-001/summary/")
+    passed = resp.status_code == 200 and "tickets" in resp.data and "total_revenue" in resp.data
+    return {
+        "passed": passed,
+        "status_code": resp.status_code,
+        "total_tickets": resp.data.get("total_tickets"),
+        "total_revenue": resp.data.get("total_revenue")
+    }
+
+results.append(("ETM: Live Shift Summary (GET /api/v1/ticketing/shift/shift-001/summary/)", *run_test("Live Shift Summary & Ticket Audit", test_shift_ticket_summary)))
+
+
 created_incident_id = None
 def test_create_incident_sos():
     global created_incident_id
@@ -314,6 +357,31 @@ def test_list_routes():
     return {"passed": passed, "status_code": resp.status_code, "routes_count": len(resp.data)}
 
 results.append(("Admin: List Routes (GET /api/v1/admin/routes/)", *run_test("Route Directory with Stops & Fares", test_list_routes)))
+
+def test_fare_controls():
+    # Test GET
+    get_resp = client.get("/api/v1/admin/fare-controls/")
+    has_rules = get_resp.status_code == 200 and isinstance(get_resp.data, list) and len(get_resp.data) > 0
+
+    # Test POST update (10% midday discount push)
+    post_payload = {"route_id": "ALL", "discount_percentage": "10.00"}
+    post_resp = client.post("/api/v1/admin/fare-controls/", post_payload, format="json")
+    has_updated = post_resp.status_code == 200 and post_resp.data.get("status") == "success"
+
+    return {
+        "passed": has_rules and has_updated,
+        "status_code": post_resp.status_code,
+        "discount_percentage": post_resp.data.get("discount_percentage")
+    }
+
+results.append(("Admin: Dynamic Fare Controls (GET & POST /api/v1/admin/fare-controls/)", *run_test("Dynamic Fare Control & 10% Discount Push", test_fare_controls)))
+
+# Maintain initial active shifts so demo/radar state is preserved
+from core.models import Shift
+Shift.objects.filter(shift_id="shift-001").update(status="Active")
+Shift.objects.filter(shift_id="shift-002").update(status="Active")
+Shift.objects.filter(shift_id="shift-003").update(status="Active")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY

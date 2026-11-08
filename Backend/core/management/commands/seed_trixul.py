@@ -155,7 +155,7 @@ class Command(BaseCommand):
             {"shift_id": "shift-003", "emp_id": "cond-1003", "bus_id": "bus-103", "route_id": "route-103"},
         ]
         for sd in shifts_data:
-            Shift.objects.get_or_create(
+            shift, created = Shift.objects.get_or_create(
                 shift_id=sd["shift_id"],
                 defaults={
                     "emp": Employee.objects.get(emp_id=sd["emp_id"]),
@@ -164,7 +164,10 @@ class Command(BaseCommand):
                     "status": "Active"
                 }
             )
-        self.stdout.write("  ✅ Created 3 Active Shifts")
+            if not created and shift.status != "Active":
+                shift.status = "Active"
+                shift.save(update_fields=["status"])
+        self.stdout.write("  ✅ Created/Reactivated 3 Active Shifts")
 
         self.stdout.write(self.style.SUCCESS(
             "\n🎉 Database seeded with TRIXUL demo data!\n"

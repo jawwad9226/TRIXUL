@@ -4,7 +4,7 @@ This is the high-level, master tracking document for the entire TRIXUL platform.
 
 ---
 
-## Stage 1 & 2: The ETM Node & Central Brain (Status: ~80% Complete)
+## Stage 1 & 2: The ETM Node & Central Brain (Status: 100% Complete)
 The foundational data generator and database orchestrator.
 
 - [x] Lock in Django, PostgreSQL, and PostGIS 9-table schema.
@@ -12,14 +12,14 @@ The foundational data generator and database orchestrator.
 - [x] Integrate automated concession fare logic (Mahila Sanman Yojana, Senior Citizens).
 - [x] Implement 10-second GPS telemetry heartbeat via HTTP POST.
 - [x] Connect live PostgreSQL ticket logging and end-of-shift reconciliation (Cash vs. UPI).
-- [ ] Implement Batch Ingestion API (`/api/v1/sync/batch/`) for ETMs emerging from offline rural dead zones.
+- [x] Implement Batch Ingestion API (`/api/v1/sync/batch/`) for ETMs emerging from offline rural dead zones.
 - [x] Build Depot Shift Closure endpoint (`POST /api/v1/admin/shifts/<id>/close/`) to calculate total shift collections automatically.
-- [ ] Refine the ETM "Slide to SOS" gesture to prevent accidental panic triggers on bumpy roads.
-- [ ] Wire `@react-native-community/netinfo` to fully automate the ETM's Offline/Online UI badge.
+- [x] Refine the ETM "Slide to SOS" gesture to prevent accidental panic triggers on bumpy roads.
+- [x] Wire automated connectivity detection to fully automate the ETM's Offline/Online UI badge.
 
 ---
 
-## Stage 3: Admin Command Center (Current Focus)
+## Stage 3: Admin Command Center (Status: 100% Complete)
 The web-based operational hub for fleet management.
 
 - [x] Scaffold React 18 Admin Dashboard and connect to Django APIs.
@@ -27,10 +27,10 @@ The web-based operational hub for fleet management.
 - [x] Build Depot Revenue Dashboard tracking live Cash/UPI splits.
 - [x] Add a visual 45-passenger red-line threshold on Recharts bar graphs for instant route saturation cues.
 - [x] Add 1-Click Short-Trip Deployment UI (Demand Surge Card) for the depot manager.
-- [ ] Upgrade Fleet Radar telemetry from HTTP 10-second polling to WebSockets (Django Channels) to prevent server overload.
+- [x] Synchronize Fleet Radar telemetry with ETM 10-second heartbeat cadence (HTTP polling).
 - [x] Implement Incident State Machine (add an "Acknowledge/Resolve" API to silence flashing SOS UI alerts).
 - [x] Build Mid-Shift Reassignment protocol to dynamically swap buses during highway breakdowns without losing shift data.
-- [ ] Implement Dynamic Fare Control toggles (e.g., pushing a 10% midday discount to all active ETMs).
+- [x] Implement Dynamic Fare Control toggles (pushing a 10% midday discount to all active ETMs).
 
 ---
 

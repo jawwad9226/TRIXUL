@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useState, useRef } from "react";
+import { Alert, StyleSheet, Text, TextInput, View, Animated, PanResponder } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import * as Location from "expo-location";
@@ -12,6 +12,61 @@ import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { submitEmergencyLocally } from "../store/slices/alertSlice";
 import { reportIncident } from "../services/api";
+
+function SlideToSOS({ onConfirm, disabled }) {
+  const pan = useRef(new Animated.Value(0)).current;
+  const [trackWidth, setTrackWidth] = useState(300);
+  const thumbWidth = 56;
+  const maxDrag = Math.max(0, trackWidth - thumbWidth);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !disabled,
+      onPanResponderMove: (_, gestureState) => {
+        if (disabled) return;
+        const newX = Math.max(0, Math.min(gestureState.dx, maxDrag));
+        pan.setValue(newX);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (disabled) return;
+        if (gestureState.dx >= maxDrag * 0.8) {
+          Animated.timing(pan, {
+            toValue: maxDrag,
+            duration: 120,
+            useNativeDriver: false,
+          }).start(() => {
+            onConfirm();
+            setTimeout(() => {
+              Animated.spring(pan, { toValue: 0, useNativeDriver: false }).start();
+            }, 1000);
+          });
+        } else {
+          Animated.spring(pan, { toValue: 0, useNativeDriver: false }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <View
+      style={styles.slideTrack}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+    >
+      <Text style={styles.slideTrackText}>Slide to Dispatch SOS ➔</Text>
+      <Animated.View
+        style={[
+          styles.slideThumb,
+          { transform: [{ translateX: pan }] },
+          disabled && { opacity: 0.5 },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <MaterialCommunityIcons name="alert-octagon" size={28} color="#fff" />
+      </Animated.View>
+    </View>
+  );
+}
+
 
 export const EmergencyAlertScreen = () => {
   const dispatch = useAppDispatch();
@@ -163,12 +218,22 @@ export const EmergencyAlertScreen = () => {
           </Text>
         </View>
 
-        <PrimaryButton
-          title={isSending ? "Sending..." : "Send Emergency Alert"}
-          onPress={submit}
-          loading={isSending}
-          disabled={isSending || !message.trim()}
-        />
+        {/* Stage 1 & 2: Slide to SOS for Accidents / Critical Emergencies to prevent bumpy road triggers */}
+        {alertType === "Accident" || alertType === "Emergency Support" ? (
+          <View style={{ marginTop: spacing.sm }}>
+            <SlideToSOS onConfirm={submit} disabled={isSending || !message.trim()} />
+            <Text style={styles.sliderHelperText}>
+              Rugged Anti-Bumping Protection: Drag thumb completely to right to broadcast emergency.
+            </Text>
+          </View>
+        ) : (
+          <PrimaryButton
+            title={isSending ? "Sending Alert..." : "Broadcast Incident Alert"}
+            onPress={submit}
+            loading={isSending}
+            disabled={isSending || !message.trim()}
+          />
+        )}
       </View>
     </Screen>
   );
@@ -217,4 +282,43 @@ const styles = StyleSheet.create({
     marginVertical: spacing.lg,
   },
   infoText: { marginLeft: 8, color: colors.light.text, fontWeight: "700" },
+  slideTrack: {
+    height: 60,
+    backgroundColor: "#7f1d1d",
+    borderRadius: 30,
+    justifyContent: "center",
+    padding: 4,
+    borderWidth: 2,
+    borderColor: "#dc2626",
+    overflow: "hidden",
+    position: "relative",
+  },
+  slideTrackText: {
+    color: "#fecaca",
+    fontSize: 13,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: 0.5,
+  },
+  slideThumb: {
+    position: "absolute",
+    left: 4,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#ef4444",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  sliderHelperText: {
+    color: colors.light.textMuted,
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 8,
+  },
 });

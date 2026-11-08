@@ -1,25 +1,63 @@
 // File: src/screens/TicketHistoryScreen.js
 // Purpose: Reads locally saved tickets and displays end-of-shift cash & UPI reconciliation.
 import React, { useEffect, useState } from "react";
-import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, StyleSheet, Text, View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { colors, radii, spacing } from "../constants/theme";
 import { storage } from "../services/storage";
+import { fetchShiftSummary } from "../services/api";
+import { useAppSelector, useAppDispatch } from "../store/hooks";
+import { hydrateHistory } from "../store/slices/ticketSlice";
 import { TicketTile } from "../components/TicketTile";
 import { currency } from "../utils/format";
 
 export const TicketHistoryScreen = () => {
+  const dispatch = useAppDispatch();
+  const profile = useAppSelector((state) => state.conductor.profile);
   const [history, setHistory] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadReconciliationData = async () => {
+    setSyncing(true);
+    try {
+      // 1. Initial render from local cache
+      const cached = await storage.loadTicketHistory([]);
+      setHistory(cached);
+
+      // 2. Fetch ground truth from PostgreSQL
+      if (profile?.shiftId) {
+        const remote = await fetchShiftSummary(profile.shiftId);
+        if (remote?.tickets && remote.tickets.length > 0) {
+          // Merge by unique ticketId
+          const ticketMap = new Map();
+          remote.tickets.forEach((t) => ticketMap.set(t.ticketId, t));
+          cached.forEach((t) => {
+            if (!ticketMap.has(t.ticketId)) {
+              ticketMap.set(t.ticketId, t);
+            }
+          });
+          const merged = Array.from(ticketMap.values()).sort(
+            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+          );
+          setHistory(merged);
+          dispatch(hydrateHistory(merged));
+          await storage.saveTicketHistory(merged);
+        }
+      }
+    } catch (err) {
+      // Offline fallback: keep cached tickets
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
-    storage
-      .loadTicketHistory([])
-      .then(setHistory)
-      .catch(() => setHistory([]));
-  }, []);
+    loadReconciliationData();
+  }, [profile?.shiftId]);
+
 
   // Compute shift reconciliation metrics
   const totalTickets = history.length;

@@ -2,7 +2,7 @@
  * pages/LiveDashboard.jsx
  * Executive HUD: Mini Fleet Radar, Demand Surge Alerts (AI), and Route Occupancy Thresholds.
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Satellite,
   Cpu,
@@ -13,6 +13,8 @@ import {
   RefreshCw,
   Send,
   Bus,
+  Tag,
+  Percent,
 } from 'lucide-react'
 import {
   BarChart,
@@ -26,23 +28,68 @@ import {
 } from 'recharts'
 import FleetMap from '../components/fleet/FleetMap'
 import { useFleetData } from '../hooks/useFleetData'
-import { createShift, fetchDispatchOptions } from '../api/admin'
+import { createShift, fetchDispatchOptions, fetchFareControls, updateFareControl } from '../api/admin'
 
 export default function LiveDashboard() {
   const { fleet, occupancyAnalytics, aiAlerts, loading, error, refresh } = useFleetData()
   const [deployStatus, setDeployStatus] = useState(null)
   const [approving, setApproving] = useState(false)
 
-  // Identify surge alerts
-  const surgeAlerts = aiAlerts.filter((a) => a.type === 'SURGE' || a.is_surge)
-  const primarySurge = surgeAlerts[0] || {
-    id: 'AI-SURGE-DEFAULT',
-    title: 'Peak Demand Surge Monitor',
-    message: 'Akola - Shegaon corridor approaching peak threshold (48/56 capacity). High queue density.',
-    suggestion: 'Deploy standby Short-Trip unit MH-14-CC-5555 to absorb intermediate boarding.',
-    action: 'Approve Short-Trip Deployment',
-    severity: 'danger',
+  // Dynamic Fare Control State (Stage 3)
+  const [fareRules, setFareRules] = useState([])
+  const [updatingFare, setUpdatingFare] = useState(false)
+  const [fareFeedback, setFareFeedback] = useState(null)
+
+  const loadFareRules = async () => {
+    try {
+      const res = await fetchFareControls()
+      setFareRules(res.data || [])
+    } catch (e) {}
   }
+
+  useEffect(() => {
+    loadFareRules()
+  }, [])
+
+  const currentDiscount = fareRules.length > 0 ? fareRules[0].discount_percentage : 0
+
+  const handleToggleMiddayDiscount = async () => {
+    setUpdatingFare(true)
+    setFareFeedback(null)
+    const newDiscount = currentDiscount > 0 ? '0.00' : '10.00'
+    try {
+      const res = await updateFareControl({ route_id: 'ALL', discount_percentage: newDiscount })
+      setFareFeedback({
+        type: 'success',
+        text: newDiscount > 0
+          ? '10% Midday Concession broadcasted to all active ETM terminals.'
+          : 'Standard fare matrix restored across all routes.',
+      })
+      await loadFareRules()
+      setTimeout(() => setFareFeedback(null), 5000)
+    } catch (err) {
+      setFareFeedback({
+        type: 'error',
+        text: err.response?.data?.message || err.message || 'Failed to update fare controls.',
+      })
+    } finally {
+      setUpdatingFare(false)
+    }
+  }
+
+  // Identify surge alerts from actual database metrics
+  const surgeAlerts = aiAlerts.filter((a) => a.type === 'SURGE' || a.is_surge)
+  const isActualSurge = surgeAlerts.length > 0
+  const primarySurge = isActualSurge
+    ? surgeAlerts[0]
+    : (aiAlerts.find((a) => a.id === 'AI-NORMAL-STATUS') || {
+        id: 'AI-NORMAL-STATUS',
+        title: 'Fleet Capacity Normal',
+        message: 'All active routes are currently operating within seated capacity limits (< 45 pax).',
+        suggestion: 'No standby bus deployments required. Operating on scheduled timetable.',
+        action: 'Standby on Depot Hold',
+        severity: 'info',
+      })
 
   // 1-Click Approve Short-Trip Deployment
   const handleApproveSurge = async () => {
@@ -79,20 +126,15 @@ export default function LiveDashboard() {
     }
   }
 
-  // Prepare Route Occupancy data
-  const chartData = occupancyAnalytics.length > 0
-    ? occupancyAnalytics.map((item) => ({
-        name: item.route_name.split('(')[0].trim(),
-        fullName: item.route_name,
-        passengers: item.passengers,
-        seatedLimit: 45,
-        isSurge: item.passengers >= 45,
-      }))
-    : [
-        { name: 'Route 101 (Shuttle)', fullName: 'Route 101 (Depot - Railway Station)', passengers: 28, seatedLimit: 45, isSurge: false },
-        { name: 'Route 102 (Akola-Pune)', fullName: 'Route 102 (Akola - Shegaon - Pune)', passengers: 49, seatedLimit: 45, isSurge: true },
-        { name: 'Route 103 (Khamgaon)', fullName: 'Route 103 (Akola - Khamgaon Express)', passengers: 38, seatedLimit: 45, isSurge: false },
-      ]
+  // Pure Live Route Occupancy data from PostgreSQL
+  const chartData = occupancyAnalytics.map((item) => ({
+    name: item.route_name.split('(')[0].trim(),
+    fullName: item.route_name,
+    passengers: item.passengers,
+    seatedLimit: 45,
+    isSurge: item.passengers >= 45,
+  }))
+
 
   return (
     <div className="space-y-6">
@@ -134,16 +176,28 @@ export default function LiveDashboard() {
                 <Cpu className="w-4 h-4 text-trixul-accent" />
                 <span>Demand Surge Alerts (AI)</span>
               </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                SURGE DETECTED
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                isActualSurge
+                  ? 'bg-red-500/20 text-red-400 border-red-500/30 animate-pulse'
+                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+              }`}>
+                {isActualSurge ? 'SURGE DETECTED' : 'FLEET NORMAL'}
               </span>
             </div>
 
             {/* Surge Card Content */}
-            <div className="bg-slate-900/70 border border-red-500/30 rounded-xl p-4 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-trixul-danger" />
+            <div className={`bg-slate-900/70 border rounded-xl p-4 relative overflow-hidden ${
+              isActualSurge ? 'border-red-500/30' : 'border-slate-700'
+            }`}>
+              <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                isActualSurge ? 'bg-trixul-danger' : 'bg-emerald-500'
+              }`} />
               <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-trixul-danger flex-shrink-0 mt-0.5" />
+                {isActualSurge ? (
+                  <AlertTriangle className="w-5 h-5 text-trixul-danger flex-shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                )}
                 <div className="space-y-1.5">
                   <h4 className="text-xs font-bold text-white tracking-wide">
                     {primarySurge.title}
@@ -184,13 +238,25 @@ export default function LiveDashboard() {
             <button
               onClick={handleApproveSurge}
               disabled={approving}
-              className="w-full bg-trixul-accent hover:bg-blue-600 active:scale-[0.99] text-white text-xs font-bold py-3 px-4 rounded-lg transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+              className={`w-full text-white text-xs font-bold py-3 px-4 rounded-lg transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 ${
+                isActualSurge
+                  ? 'bg-trixul-accent hover:bg-blue-600'
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+              }`}
             >
               <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-              <span>{approving ? 'Deploying Standby Bus...' : 'Approve Short-Trip Deployment'}</span>
+              <span>
+                {approving
+                  ? 'Deploying Standby Bus...'
+                  : isActualSurge
+                  ? 'Approve Short-Trip Deployment'
+                  : 'Pre-Stage Hot-Standby Bus'}
+              </span>
             </button>
             <p className="text-[10px] text-slate-500 text-center mt-2">
-              Automatically assigns standby fleet to alleviate passenger bottleneck.
+              {isActualSurge
+                ? 'Assigns standby fleet to relieve passenger bottleneck on active corridor.'
+                : 'All corridors normal. Standby units maintained on depot reserve.'}
             </p>
           </div>
         </div>
@@ -273,6 +339,78 @@ export default function LiveDashboard() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── Stage 3: Dynamic Fare Control & Concession Push ──────────────── */}
+      <div className="bg-trixul-panel rounded-xl border border-slate-700 shadow-xl p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-700/80 gap-3">
+          <div>
+            <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+              <Percent className="w-4 h-4 text-emerald-400" />
+              <span>Dynamic Fare Control & Midday Concessions</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Broadcast instantaneous off-peak fare discounts or reset standard tariff matrices across active ETM terminals.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className={`text-xs px-3 py-1 rounded-full font-bold border ${
+              currentDiscount > 0
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 animate-pulse'
+                : 'bg-slate-800 text-slate-400 border-slate-700'
+            }`}>
+              {currentDiscount > 0 ? `10% Midday Discount ACTIVE` : 'Standard Tariff Matrix'}
+            </span>
+            <button
+              onClick={handleToggleMiddayDiscount}
+              disabled={updatingFare}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow ${
+                currentDiscount > 0
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              } disabled:opacity-50`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>
+                {updatingFare
+                  ? 'Syncing Tariff...'
+                  : currentDiscount > 0
+                  ? 'Restore Standard Fare'
+                  : 'Push 10% Midday Concession'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {fareFeedback && (
+          <div className={`mt-3 text-xs p-2.5 rounded-lg border flex items-center gap-2 ${
+            fareFeedback.type === 'error'
+              ? 'bg-red-500/10 border-red-500/30 text-red-300'
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+          }`}>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>{fareFeedback.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
+          {fareRules.slice(0, 4).map((rule) => (
+            <div key={rule.route_id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
+              <p className="text-xs font-bold text-white truncate">{rule.route_name}</p>
+              <div className="flex justify-between items-center mt-2 text-[11px] text-slate-400">
+                <span>Base: ₹{rule.base_fare.toFixed(2)}</span>
+                <span>Rate: ₹{rule.per_km_rate.toFixed(2)}/km</span>
+              </div>
+              <div className="flex justify-between items-center mt-1 text-[11px]">
+                <span className="text-slate-500">Discount:</span>
+                <span className={`font-bold ${rule.discount_percentage > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {rule.discount_percentage > 0 ? `${rule.discount_percentage}% OFF` : 'None'}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

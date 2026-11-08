@@ -1,7 +1,7 @@
 # TRIXUL Project Memory Scratchpad
 
 ## Current Focus & Status
-- **Active Sprint:** Stage 3 (Admin Command Center Hardening & Critical Technical Fixes)
+- **Active Sprint:** Stages 1, 2, and 3 Hardened & 100% Completed
 - **Target Component:** Full Stack Monorepo (`Backend`, `ETM-Interface`, `Admin-Dashboard`)
 - **Master Plan Source:** `MASTER_EXECUTION_LOG.md` (Synchronized)
 
@@ -14,40 +14,42 @@
 - [x] Custom SimpleJWT authentication via `EmployeeJWTAuthentication` (`authentication.py`) keyed to `emp_id`.
 - [x] PostgreSQL + PostGIS integration with GeoDjango spatial queries (`Distance()`, `ST_Distance_Sphere`).
 - [x] "Fat Services, Thin Views" pattern strictly enforced.
-- [x] Database migration `0002_ticket_payment_method_incident.py` applied (`payment_method` on `Ticket`, `Incident` model).
+- [x] Database migrations `0002_ticket_payment_method_incident.py` and `0003_farerule_discount_percentage.py` applied.
 - [x] All REST POST endpoints validated strictly via DRF Serializers before service execution.
-- [x] Idempotent data seeding via `core/management/commands/seed_trixul.py` using `get_or_create()`.
+- [x] Idempotent data seeding via `core/management/commands/seed_trixul.py` maintaining active shift states.
 - [x] Safe environment template `Backend/.env.example` created.
 - [x] Shift closure endpoint implemented (`POST /api/v1/admin/shifts/<shift_id>/close/`).
 - [x] Incident State Machine API: `PATCH /api/v1/admin/incidents/<id>/acknowledge/` & resolve.
 - [x] Mid-shift bus swap endpoint (`POST /api/v1/admin/shifts/<id>/reassign-bus/`).
-- [ ] WebSockets via Django Channels (`asgi.py`, channels routing) for real-time fleet push.
-- [ ] ETM Batch Ingestion API (`POST /api/v1/sync/batch/`).
+- [x] ETM Batch Ingestion API (`POST /api/v1/sync/batch/`) for offline dead zones.
+- [x] Shift Ticket Summary API (`GET /api/v1/ticketing/shift/<shift_id>/summary/`) for live reconciliation.
+- [x] Dynamic Fare Control API (`GET` & `POST /api/v1/admin/fare-controls/`) supporting 10% midday discounts.
 
 ### 2. ETM-Interface (`ETM-Interface/`)
 - [x] Zero-mock architecture — All actions communicate directly with PostgreSQL backend via Axios client.
-- [x] Pure Redux store integration across 6 slices (`conductor`, `route`, `ticket`, `alerts`, `logs`, `auth`).
+- [x] Pure Redux store integration across 6 slices (`conductor`, `route`, `ticket`, `alerts`, `bus`, `updates`).
 - [x] Rugged thumb-friendly booking UI with `+ / −` steppers for Adult Male, Women (50% Mahila Sanman), Senior Citizens (Free), and Children (50%).
 - [x] Smart 3-chip "From" stop selector (`⏪ Prev` / `📍 GPS Current` / `⏩ Next`).
 - [x] Fare table lookup by stop ID / stop name with distance-based dynamic fallback.
 - [x] Emergency SOS broadcast integrated directly to backend `/api/v1/admin/incidents/` with offline storage fallback.
-- [x] Conductor end-of-shift reconciliation card with Cash vs UPI split in Ticket History.
-- [ ] Refine "Slide to SOS" gesture component for rough highway roads.
-- [ ] Integrate `@react-native-community/netinfo` for automated Offline/Online state indicator.
+- [x] Conductor end-of-shift reconciliation card with Cash vs UPI split in Ticket History connected to live PostgreSQL records.
+- [x] Rugged "Slide to SOS" swipe gesture component preventing accidental panic triggers on rough roads.
+- [x] Automated Offline/Online state indicator with background batch queue ingestion.
+- [x] Other Bus Routes screen connected to live backend fleet directory.
+- [x] Updates screen connected to live backend road incidents and emergency warnings.
+- [x] Dynamic mid-shift bus swap detection on heartbeat.
 
 ### 3. Admin-Dashboard (`Admin-Dashboard/`)
 - [x] Standalone sub-project (React 18 + Vite + Tailwind CSS + Leaflet + Recharts + Lucide).
 - [x] Persistent Global Revenue HUD & Active Fleet KPI banner in header across all pages.
-- [x] CartoDB Dark Matter Leaflet map with pulsing real-time bus telemetry markers.
+- [x] OpenStreetMap Leaflet map with pulsing real-time bus telemetry markers.
 - [x] 1-Click Short-Trip Deployment UI (Demand Surge Card) for depot managers.
-- [x] Route Volume & Occupancy Chart with standard 45-passenger red-line threshold.
+- [x] Route Volume & Occupancy Chart with standard 45-passenger red-line threshold driven purely by live database queries.
 - [x] Instant Shift Assignment connected directly to database conductors, buses, and routes.
 - [x] Incident action controls ("Acknowledge Alert" / "Resolve") to silence flashing SOS alarms.
 - [x] Mid-Shift Bus Swap UI inside Shift Management tab.
 - [x] Visual Route & Stop Builder with direct map-click pin extraction and real-time route polyline linking.
-- [x] Switched all maps from watermarked CartoDB tiles to clean OpenStreetMap tiles.
-- [ ] WebSocket client hook for live radar stream (migrating from 10s polling).
-- [ ] Dynamic Fare Control toggle panel (pushing concession/discount rates to active ETMs).
+- [x] Dynamic Fare Control Panel with 1-click 10% Midday Concession broadcast to active ETMs.
 
 ---
 

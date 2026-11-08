@@ -16,14 +16,48 @@ class RouteService:
 
         # Fetch active shift and bus details assigned to this route
         active_shift = Shift.objects.filter(route=route, status='Active').select_related('bus', 'emp').first()
-        bus_info = {
-            "bus_id": active_shift.bus.bus_id if active_shift else "bus-101",
-            "bus_number": active_shift.bus.registration_number if active_shift else "MH-30-AB-1234",
-            "capacity_total": active_shift.bus.capacity_total if active_shift else 56,
-            "shift_id": active_shift.shift_id if active_shift else "shift-001",
-            "conductor_id": active_shift.emp.emp_id if active_shift else "cond-1001",
-            "conductor_name": active_shift.emp.name if active_shift else "Suresh Patil",
+        if active_shift:
+            bus_info = {
+                "bus_id": active_shift.bus.bus_id,
+                "bus_number": active_shift.bus.registration_number,
+                "capacity_total": active_shift.bus.capacity_total,
+                "shift_id": active_shift.shift_id,
+                "conductor_id": active_shift.emp.emp_id,
+                "conductor_name": active_shift.emp.name,
+                "has_active_shift": True,
+            }
+        else:
+            bus_info = {
+                "bus_id": None,
+                "bus_number": None,
+                "capacity_total": 56,
+                "shift_id": None,
+                "conductor_id": None,
+                "conductor_name": None,
+                "has_active_shift": False,
+            }
+
+        # Real-time shift live statistics
+        shift_stats = {
+            "passengers_count": 0,
+            "tickets_count": 0,
+            "total_revenue": 0.0,
+            "cash_revenue": 0.0,
+            "upi_revenue": 0.0,
         }
+        if active_shift:
+            st = Ticket.objects.filter(shift=active_shift).aggregate(
+                pax=Sum('passenger_count'),
+                rev=Sum('total_fare'),
+                cnt=Count('ticket_id')
+            )
+            cash_agg = Ticket.objects.filter(shift=active_shift, payment_method='CASH').aggregate(rev=Sum('total_fare'))
+            upi_agg = Ticket.objects.filter(shift=active_shift, payment_method='UPI').aggregate(rev=Sum('total_fare'))
+            shift_stats["passengers_count"] = st['pax'] or 0
+            shift_stats["tickets_count"] = st['cnt'] or 0
+            shift_stats["total_revenue"] = float(st['rev'] or 0)
+            shift_stats["cash_revenue"] = float(cash_agg['rev'] or 0)
+            shift_stats["upi_revenue"] = float(upi_agg['rev'] or 0)
 
         # Get stops ordered by sequence
         route_stops = RouteStop.objects.filter(route=route).select_related('stop').order_by('sequence')
@@ -45,18 +79,22 @@ class RouteService:
             fare_rule = FareRule.objects.get(route=route)
             base_fare = fare_rule.base_fare
             per_km_rate = fare_rule.per_km_rate
+            discount_pct = float(getattr(fare_rule, 'discount_percentage', 0) or 0)
         except FareRule.DoesNotExist:
             base_fare = Decimal('10.00')
             per_km_rate = Decimal('1.50')
+            discount_pct = 0.0
 
         n = len(route_stops)
+        discount_multiplier = Decimal(str(1.0 - (discount_pct / 100.0))) if discount_pct > 0 else Decimal('1.00')
         for i in range(n):
             for j in range(i + 1, n):
                 rs_from = route_stops[i]
                 rs_to = route_stops[j]
                 
                 distance_diff = abs(Decimal(str(rs_to.distance_km)) - Decimal(str(rs_from.distance_km)))
-                price = base_fare + (distance_diff * per_km_rate)
+                raw_price = base_fare + (distance_diff * per_km_rate)
+                price = raw_price * discount_multiplier
                 
                 fares_data.append({
                     "from": rs_from.stop.stop_name,
@@ -82,6 +120,9 @@ class RouteService:
             "shiftId": bus_info["shift_id"],
             "conductorName": bus_info["conductor_name"],
             "conductorId": bus_info["conductor_id"],
+            "hasActiveShift": bus_info["has_active_shift"],
+            "shiftStats": shift_stats,
+            "discountPercentage": discount_pct,
             "stops": stops_data,
             "fares": fares_data,
             "activeYojnas": active_yojnas
@@ -139,14 +180,20 @@ class TelemetryService:
             eta_mins = 8
 
         condition = "Moving" if speed > 5 else "Stationary / Boarding"
+        pax_today = Ticket.objects.filter(shift=shift).aggregate(pax=Sum('passenger_count'))['pax'] or 0
 
         return {
             "status": "success",
+            "shift_id": shift.shift_id,
+            "bus_id": shift.bus.bus_id,
+            "bus_number": shift.bus.registration_number,
+            "shift_status": shift.status,
             "current_stop": current_stop_name,
             "next_stop": next_stop_name,
             "eta_minutes": eta_mins,
             "condition": condition,
             "speed": speed,
+            "passengers_count": pax_today,
             "processed": True
         }
 
@@ -206,6 +253,129 @@ class TicketingService:
             "payment_method": payment_method,
             "message": "Ticket logged securely in PostgreSQL."
         }
+
+    @staticmethod
+    def batch_issue_tickets(data):
+        """
+        STAGE 1 & 2: Batch Ingestion API for ETMs emerging from offline rural dead zones.
+        Atomically processes an array of queued tickets from local storage.
+        """
+        shift_id = data.get('shift_id')
+        shift = Shift.objects.filter(shift_id=shift_id).first()
+        if not shift:
+            shift = Shift.objects.filter(status='Active').first()
+        if not shift:
+            return {"status": "error", "message": "No active shift found"}
+
+        created_tickets = []
+        duplicate_count = 0
+        for item in data.get('tickets', []):
+            t_id = item.get('ticket_id')
+            if not t_id:
+                t_id = f"TKT-{shift.route.route_id.split('-')[-1]}-{str(uuid.uuid4().int)[:6]}"
+
+            if Ticket.objects.filter(ticket_id=t_id).exists():
+                duplicate_count += 1
+                continue
+
+            source_stop = (
+                Stop.objects.filter(stop_id=item['source_stop_id']).first()
+                or Stop.objects.filter(stop_name=item['source_stop_id']).first()
+            )
+            dest_stop = (
+                Stop.objects.filter(stop_id=item['dest_stop_id']).first()
+                or Stop.objects.filter(stop_name=item['dest_stop_id']).first()
+            )
+            if not source_stop or not dest_stop:
+                continue
+
+            payment_method = item.get('payment_method', 'CASH').upper()
+            if payment_method not in ('CASH', 'UPI'):
+                payment_method = 'CASH'
+
+            Ticket.objects.create(
+                ticket_id=t_id,
+                shift=shift,
+                source_stop=source_stop,
+                dest_stop=dest_stop,
+                passenger_count=item.get('passenger_count', 1),
+                total_fare=Decimal(str(item['total_fare'])),
+                payment_method=payment_method,
+                timestamp=item['timestamp']
+            )
+            created_tickets.append(t_id)
+
+        totals = Ticket.objects.filter(shift=shift).aggregate(
+            pax=Sum('passenger_count'),
+            rev=Sum('total_fare'),
+            cnt=Count('ticket_id')
+        )
+
+        return {
+            "status": "success",
+            "synced_count": len(created_tickets),
+            "duplicates_skipped": duplicate_count,
+            "shift_id": shift.shift_id,
+            "total_shift_tickets": totals['cnt'] or 0,
+            "total_shift_passengers": totals['pax'] or 0,
+            "total_shift_revenue": float(totals['rev'] or 0),
+            "message": f"Successfully ingested {len(created_tickets)} offline tickets into PostgreSQL."
+        }
+
+    @staticmethod
+    def get_shift_ticket_summary(shift_id):
+        """
+        Returns full live shift ticket history and cash/UPI reconciliation from PostgreSQL.
+        """
+        shift = Shift.objects.filter(shift_id=shift_id).first()
+        if not shift:
+            shift = Shift.objects.filter(status='Active').first()
+        if not shift:
+            return {"status": "error", "message": "Shift not found"}
+
+        tickets = Ticket.objects.filter(shift=shift).select_related('source_stop', 'dest_stop').order_by('-timestamp')
+        ticket_list = [
+            {
+                "ticketId": t.ticket_id,
+                "routeId": shift.route.route_id,
+                "boardingStop": t.source_stop.stop_name,
+                "destinationStop": t.dest_stop.stop_name,
+                "fare": float(t.total_fare),
+                "passengerCount": t.passenger_count,
+                "paymentMode": t.payment_method.lower(),
+                "timestamp": t.timestamp.isoformat(),
+            }
+            for t in tickets
+        ]
+
+        cash_agg = Ticket.objects.filter(shift=shift, payment_method='CASH').aggregate(
+            rev=Sum('total_fare'), count=Count('ticket_id')
+        )
+        upi_agg = Ticket.objects.filter(shift=shift, payment_method='UPI').aggregate(
+            rev=Sum('total_fare'), count=Count('ticket_id')
+        )
+        totals = Ticket.objects.filter(shift=shift).aggregate(
+            rev=Sum('total_fare'), pax=Sum('passenger_count'), count=Count('ticket_id')
+        )
+
+        return {
+            "shift_id": shift.shift_id,
+            "bus_number": shift.bus.registration_number,
+            "bus_id": shift.bus.bus_id,
+            "conductor_name": shift.emp.name,
+            "conductor_id": shift.emp.emp_id,
+            "route_name": shift.route.route_name,
+            "status": shift.status,
+            "total_tickets": totals['count'] or 0,
+            "total_passengers": totals['pax'] or 0,
+            "total_revenue": float(totals['rev'] or 0),
+            "cash_revenue": float(cash_agg['rev'] or 0),
+            "cash_tickets": cash_agg['count'] or 0,
+            "upi_revenue": float(upi_agg['rev'] or 0),
+            "upi_tickets": upi_agg['count'] or 0,
+            "tickets": ticket_list
+        }
+
 
 
 # ============================================================
@@ -432,24 +602,25 @@ class AdminFleetService:
         high_load_route = next((item for item in occupancy_analytics if item["is_surge"]), None)
         if high_load_route:
             ai_alerts.append({
-                "id": "AI-SURGE-01",
+                "id": f"AI-SURGE-{high_load_route['route_id']}",
                 "type": "SURGE",
+                "is_surge": True,
                 "title": "Demand Surge Detected",
-                "message": f"High volume on {high_load_route['route_name']} ({high_load_route['passengers']} passengers). Seated capacity exceeded.",
-                "suggestion": "Deploy standby 'Short-Trip' bus via Bhusawal. Projected ROI: +31%.",
+                "message": f"High volume on {high_load_route['route_name']} ({high_load_route['passengers']} passengers). Seated capacity (45) exceeded.",
+                "suggestion": "Deploy standby Short-Trip bus to absorb intermediate boarding bottleneck.",
                 "action": "Approve Short-Trip Deployment",
                 "severity": "danger",
             })
         else:
-            # Proactive intelligence card based on traffic
             ai_alerts.append({
-                "id": "AI-DEMAND-PREDICT",
-                "type": "SURGE",
-                "title": "Peak Hour Demand Monitor",
-                "message": "Passenger volume near Akola & Shegaon approaching 80% threshold for evening shift.",
-                "suggestion": "AI Suggestion: Keep standby bus MH-14-CC-5555 on hot-standby at Akola Depot.",
-                "action": "Pre-Stage Bus",
-                "severity": "warning",
+                "id": "AI-NORMAL-STATUS",
+                "type": "NORMAL",
+                "is_surge": False,
+                "title": "Fleet Capacity Normal",
+                "message": "All active routes operating within seated capacity limits (< 45 pax).",
+                "suggestion": "No standby bus deployments required. Operating on scheduled timetable.",
+                "action": "Standby on Depot Hold",
+                "severity": "info",
             })
 
         # 3. Telemetry excessive idling check
@@ -764,3 +935,54 @@ class AdminIncidentService:
             "incident_status": "ACKNOWLEDGED",
             "message": f"Incident {incident_id} acknowledged and silenced."
         }
+
+
+# ============================================================
+# STAGE 3 — Dynamic Fare Control Service
+# ============================================================
+
+class FareControlService:
+    @staticmethod
+    def get_fare_controls():
+        """Returns all routes with base fare, per km rate, and active discount percentage."""
+        rules = FareRule.objects.select_related('route').all().order_by('route__route_id')
+        return [
+            {
+                "route_id": r.route.route_id,
+                "route_name": r.route.route_name,
+                "base_fare": float(r.base_fare),
+                "per_km_rate": float(r.per_km_rate),
+                "discount_percentage": float(getattr(r, 'discount_percentage', 0) or 0),
+            }
+            for r in rules
+        ]
+
+    @staticmethod
+    def update_fare_control(data):
+        """Updates discount percentage or rates across one or all routes."""
+        route_id = data.get('route_id')
+        discount = Decimal(str(data.get('discount_percentage', '0.00')))
+
+        if route_id and route_id != 'ALL':
+            rules = FareRule.objects.filter(route__route_id=route_id)
+        else:
+            rules = FareRule.objects.all()
+
+        updated_count = 0
+        for rule in rules:
+            if 'discount_percentage' in data:
+                rule.discount_percentage = discount
+            if 'base_fare' in data and data['base_fare'] is not None:
+                rule.base_fare = Decimal(str(data['base_fare']))
+            if 'per_km_rate' in data and data['per_km_rate'] is not None:
+                rule.per_km_rate = Decimal(str(data['per_km_rate']))
+            rule.save()
+            updated_count += 1
+
+        return {
+            "status": "success",
+            "updated_routes": updated_count,
+            "discount_percentage": float(discount),
+            "message": f"Updated dynamic fare controls for {updated_count} route(s)."
+        }
+

@@ -10,6 +10,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
+import { updateBusAssignment } from "../store/slices/conductorSlice";
 import { sendHeartbeat } from "../services/api";
 
 export const BusStatusScreen = () => {
@@ -24,8 +25,8 @@ export const BusStatusScreen = () => {
   const handleManualHeartbeat = async () => {
     dispatch(setBusLoading(true));
     try {
-      let lat = 20.7095;
-      let lng = 76.9981;
+      let lat = route?.stops?.[0]?.latitude || 20.7002;
+      let lng = route?.stops?.[0]?.longitude || 77.0022;
       let spd = 38.5;
 
       try {
@@ -47,15 +48,24 @@ export const BusStatusScreen = () => {
       };
 
       const response = await sendHeartbeat(payload);
+
+      // Mid-Shift Bus Swap Detection
+      if (response?.bus_number && response.bus_number !== profile?.busNumber) {
+        dispatch(updateBusAssignment({
+          busNumber: response.bus_number,
+          busId: response.bus_id,
+        }));
+      }
+
       dispatch(setBusStatus({
-        current_stop: response?.current_stop || route?.stops?.[0]?.name || "Akola",
+        current_stop: response?.current_stop || route?.stops?.[0]?.name || "Akola Bus Stand",
         next_stop: response?.next_stop || route?.stops?.[1]?.name || "Shegaon",
         eta_minutes: response?.eta_minutes || 8,
         condition: response?.condition || "Moving (Clear)",
         speed: payload.speed,
       }));
       setSyncNotice(`Synced at ${new Date().toLocaleTimeString()}`);
-      Alert.alert("Telemetry Sent", "Live GPS coordinates broadcasted to central tracking.");
+      Alert.alert("Telemetry Sent", `Live GPS broadcasted to central dispatch. Bus: ${response?.bus_number || profile?.busNumber || "Active"}`);
     } catch (err) {
       dispatch(setBusError(err.message));
       Alert.alert("Notice", "GPS captured locally. Background sync active.");
@@ -116,7 +126,7 @@ export const BusStatusScreen = () => {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Route Station Timeline</Text>
-          <Text style={styles.cardSub}>{route?.route_name ?? "Akola - Pune (Via Bhusawal)"}</Text>
+          <Text style={styles.cardSub}>{route?.route_name || "Operational Route"}</Text>
         </View>
 
         <View style={styles.timelineContainer}>
