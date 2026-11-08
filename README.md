@@ -19,11 +19,16 @@
 
 **TRIXUL** is an end-to-end, enterprise-grade public transport management and Automated Fare Collection System (AFCS). Inspired by real-world intercity transit operations like the Maharashtra State Road Transport Corporation (MSRTC), TRIXUL digitizes the entire lifecycle of bus transit:
 
+<img src="Presentation/architechture.png" alt="TRIXUL Architecture" width= "auto" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 16px;" />
 1. **At the Vehicle Level (ETM Node):** Equips bus conductors with rugged, offline-first Electronic Ticket Machines for one-handed fare issuance, automated government welfare deductions (e.g., Mahila Sanman Yojana 50% discount, 75+ free travel), 10-second GPS telemetry, and bump-proof emergency SOS reporting.
 2. **At the Headquarters Level (Admin Command Center):** Provides depot managers with an operational command center displaying live fleet radar, 45-passenger route saturation alerts, instant mid-shift bus swap controls for breakdowns, dynamic fare controls (midday discounts), and automated end-of-shift cash vs. UPI financial reconciliation.
 3. **At the Database Core (Central Brain):** Employs GeoDjango and PostgreSQL with PostGIS extensions to perform high-speed spatial calculations (live distance to upcoming stops, automated ETA projections, passenger load analytics) with zero mock or synthetic fallback layers.
 
 ---
+
+##  Basic Workflow
+<div align="center">
+  <img src="Presentation/workflow.png" alt="TRIXUL Platform Wrokflow" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 16px;" /> </div>
 
 ## 🏗️ Monorepo Architecture
 
