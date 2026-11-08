@@ -1,9 +1,4 @@
 import { createSlice } from "@reduxjs/toolkit";
-import {
-  fetchLatestBusLocation,
-  fetchLiveBusStatus,
-  reportBusLocation,
-} from "../../services/busTelemetry";
 
 const initialState = {
   status: null, // { current_stop, next_stop, eta_minutes, condition, speed }
@@ -24,9 +19,12 @@ const busSlice = createSlice({
     },
     setBusError(state, action) {
       state.error = action.payload;
-    }
+    },
+    setActiveBuses(state, action) {
+      state.activeBuses = action.payload;
+    },
   },
 });
 
-export const { setBusStatus, setBusLoading, setBusError } = busSlice.actions;
+export const { setBusStatus, setBusLoading, setBusError, setActiveBuses } = busSlice.actions;
 export default busSlice.reducer;

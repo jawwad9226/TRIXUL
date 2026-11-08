@@ -1,16 +1,51 @@
-import React, { useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { FlatList, StyleSheet, Text, TextInput, View, Pressable, RefreshControl } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
-import { useAppSelector } from "../store/hooks";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { setActiveBuses } from "../store/slices/busSlice";
+import { fetchActiveFleet } from "../services/api";
+import { storage } from "../services/storage";
 
 export const OtherBusRoutesScreen = () => {
+  const dispatch = useAppDispatch();
   const buses = useAppSelector((state) => state.bus.activeBuses);
   const [query, setQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadFleet = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const data = await fetchActiveFleet();
+      const rawFleet = data?.fleet || (Array.isArray(data) ? data : []);
+      const mapped = rawFleet.map((b) => ({
+        busId: b.bus_id,
+        busNumber: b.bus_number,
+        routeName: b.route_name,
+        status: (b.last_seen?.speed || 0) > 0 ? "Running" : "Boarding",
+        occupancy: b.occupancy_rate || "0/56",
+        currentStop: b.route_name ? b.route_name.split('-')[0].trim() : "Terminal",
+        conductor: b.conductor_name,
+      }));
+      dispatch(setActiveBuses(mapped));
+      await storage.saveActiveBuses(mapped);
+    } catch (err) {
+      // Keep cached active buses
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch]);
+
+  useEffect(() => {
+    loadFleet();
+    const interval = setInterval(loadFleet, 15000);
+    return () => clearInterval(interval);
+  }, [loadFleet]);
+
 
   const filtered = (buses ?? []).filter(
     (bus) =>

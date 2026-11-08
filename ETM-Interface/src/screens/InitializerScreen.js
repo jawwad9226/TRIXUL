@@ -9,63 +9,104 @@ import { useNavigation } from "@react-navigation/native";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
 import { colors, radii, spacing } from "../constants/theme";
-import { login, fetchRouteData } from "../services/api";
+import { login, fetchRouteData, fetchShiftSummary } from "../services/api";
 import { storage } from "../services/storage";
 import { useAppDispatch } from "../store/hooks";
 import { setRoute } from "../store/slices/routeSlice";
 import { setProfile } from "../store/slices/conductorSlice";
+import { hydrateHistory } from "../store/slices/ticketSlice";
 
 export const InitializerScreen = () => {
   const dispatch = useAppDispatch();
   const navigation = useNavigation();
   
-  const [routeId, setRouteId] = useState("route-102"); // default from seeder
+  const [routeId, setRouteId] = useState("");
   const [empId, setEmpId] = useState("cond-1001");
   const [loading, setLoading] = useState(false);
 
   const fetchAndSaveRoute = async () => {
+    if (!empId.trim()) {
+      Alert.alert("Missing ID", "Please enter your Conductor Employee ID.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // 1. Clear old cache data (if any)
+      // 1. Clear old cache data
       try {
         await storage.clearMockData();
       } catch (e) {}
       
-      // 2. API Call: Login
+      // 2. API Call: Conductor Authentication
       const loginRes = await login(empId.trim());
-      if (loginRes?.employee) {
-        const profileData = {
-          conductorName: loginRes.employee.name,
-          conductorId: loginRes.employee.emp_id,
-          role: loginRes.employee.role,
-          shift: "Morning Shift", // Defaulting as shift API isn't built
-        };
-        dispatch(setProfile(profileData));
-        await storage.saveConductorData(profileData);
+      if (!loginRes?.employee) {
+        throw new Error("Unable to authenticate conductor credentials.");
       }
-      
-      // 3. API Call: Fetch Route
-      const routeData = await fetchRouteData(routeId.trim());
-      
-      // 4. Analyze API Data & Store in Cache (Redux & Local)
-      // The API returns { route_id, route_name, stops, fares }
+
+      // Check if conductor has an assigned active shift in PostgreSQL
+      const activeShift = loginRes.shift;
+      const targetRouteId = activeShift?.route_id || routeId.trim() || "route-102";
+
+      const profileData = {
+        conductorName: loginRes.employee.name,
+        conductorId: loginRes.employee.id || loginRes.employee.emp_id || empId.trim(),
+        role: loginRes.employee.role,
+        shift: activeShift ? `${activeShift.shift_id} (${activeShift.route_name})` : "Unassigned Shift",
+        shiftId: activeShift ? activeShift.shift_id : null,
+        busNumber: activeShift ? activeShift.bus_number : null,
+        busId: activeShift ? activeShift.bus_id : null,
+        hasActiveShift: Boolean(activeShift),
+      };
+
+      // 3. API Call: Fetch Route & Fare Matrix
+      const routeData = await fetchRouteData(targetRouteId);
+
+      // If route has active shift details and conductor had none, sync them
+      if (!profileData.shiftId && routeData?.shiftId) {
+        profileData.shiftId = routeData.shiftId;
+        profileData.busNumber = routeData.busNumber;
+        profileData.busId = routeData.busId;
+        profileData.hasActiveShift = true;
+      }
+
+      // 4. Save to Redux & Local Storage
+      dispatch(setProfile(profileData));
+      await storage.saveConductorData(profileData);
+
       dispatch(setRoute(routeData));
       await storage.saveRouteData(routeData);
-      
-      Alert.alert("Success", "Real route data fetched and cached successfully.");
+
+      // 5. Hydrate real tickets for this shift from PostgreSQL
+      if (profileData.shiftId) {
+        try {
+          const shiftSummary = await fetchShiftSummary(profileData.shiftId);
+          if (shiftSummary?.tickets) {
+            dispatch(hydrateHistory(shiftSummary.tickets));
+            await storage.saveTicketHistory(shiftSummary.tickets);
+          }
+        } catch (sumErr) {
+          // Non-blocking if no prior tickets
+        }
+      }
+
+      Alert.alert(
+        "ETM Initialized",
+        `Conductor: ${profileData.conductorName}\nBus: ${profileData.busNumber || "Standby"}\nRoute: ${routeData.route_name}\nShift: ${profileData.shiftId || "Standby"}`
+      );
       navigation.reset({ index: 0, routes: [{ name: "Splash" }] });
     } catch (error) {
       Alert.alert(
-        "Initialization failed",
-        error.response?.data?.error || error.response?.data?.detail || error.message || "Unknown error"
+        "Initialization Failed",
+        error.response?.data?.error || error.response?.data?.detail || error.message || "Unknown initialization error"
       );
     } finally {
       setLoading(false);
     }
   };
 
+
   return (
-    <Screen>
+    <Screen showBack backTitle="Dashboard">
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Live Initialization</Text>

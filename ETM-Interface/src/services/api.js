@@ -138,4 +138,62 @@ export const fetchRouteData = async (routeId) => {
   return response.data;
 };
 
+/**
+ * Incident Service (Stage 3)
+ * @param {Object} payload
+ * @param {string} [payload.shift_id]
+ * @param {string} payload.severity - 'SOS' | 'WARNING' | 'INFO'
+ * @param {string} payload.message
+ * @param {number} [payload.latitude]
+ * @param {number} [payload.longitude]
+ */
+export const reportIncident = async (payload) => {
+  const response = await apiClient.post('/api/v1/admin/incidents/', payload);
+  return response.data;
+};
+
+/**
+ * Stage 1 & 2: Batch Ingestion Service for Offline Tickets
+ * @param {Object} payload
+ * @param {string} payload.shift_id
+ * @param {Array} payload.tickets
+ */
+export const batchSyncTickets = async (payload) => {
+  const response = await apiClient.post('/api/v1/sync/batch/', payload);
+  return response.data;
+};
+
+/**
+ * Shift Summary & Financial Reconciliation Service
+ * @param {string} shiftId
+ */
+export const fetchShiftSummary = async (shiftId) => {
+  const response = await apiClient.get(`/api/v1/ticketing/shift/${shiftId}/summary/`);
+  return response.data;
+};
+
+/**
+ * Live Fleet Directory for Other Buses
+ */
+export const fetchActiveFleet = async () => {
+  const response = await apiClient.get('/api/v1/admin/fleet/');
+  return response.data;
+};
+
+/**
+ * Live Incident Stream for Road Advisories & Updates
+ */
+export const fetchActiveIncidents = async () => {
+  const response = await apiClient.get('/api/v1/admin/incidents/');
+  return response.data;
+};
+
+/**
+ * Dynamic Fare Controls Lookup
+ */
+export const fetchFareControls = async () => {
+  const response = await apiClient.get('/api/v1/admin/fare-controls/');
+  return response.data;
+};
+
 export default apiClient;

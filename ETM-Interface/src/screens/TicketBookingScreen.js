@@ -1,22 +1,19 @@
 // File: src/screens/TicketBookingScreen.js
 // Purpose: Collects passenger details, calculates fare, and stores ticket history.
-// Imports: route state, ticket slice actions, storage, and fare helpers.
-// Behavior: Payment mode and route data decide whether booking can complete.
+// Features: Smart 'From' chips (Previous/Current/Next), thumb-friendly +/- steppers, admin-managed Yojana concessions.
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 
 import { EmptyState } from "../components/EmptyState";
-import { Field } from "../components/Field";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
@@ -46,52 +43,85 @@ export const TicketBookingScreen = () => {
   const currentTicket = useAppSelector((state) => state.ticket.currentTicket);
   const bookingError = useAppSelector((state) => state.ticket.bookingError);
   const profile = useAppSelector((state) => state.conductor.profile);
-  const [showQr, setShowQr] = useState(false);
   const [isIssuing, setIsIssuing] = useState(false);
+
+  // Active Yojana concessions (admin-managed configuration)
+  const activeYojnas = route?.activeYojnas ?? {
+    mahilaSanman: true, // 50% discount for female passengers (Government scheme)
+    seniorCitizen: true, // 100% concession for senior citizens (75+)
+    childConcession: true, // 50% half-ticket for children (5-12 years)
+  };
 
   useEffect(() => {
     storage
       .loadTicketHistory([])
       .then((history) => dispatch(hydrateHistory(history)))
       .catch(() => null);
-  }, [dispatch]);
 
-  if (!route) {
+    // Default boarding stop to first or second stop if not set
+    if (!draft.boardingStop && stops.length > 0) {
+      dispatch(updateDraft({ boardingStop: stops[0].stop_id || stops[0].id }));
+    }
+    if (!draft.destinationStop && stops.length > 1) {
+      dispatch(updateDraft({ destinationStop: stops[stops.length - 1].stop_id || stops[stops.length - 1].id }));
+    }
+  }, [dispatch, stops]);
+
+  if (!route || stops.length === 0) {
     return (
-      <Screen>
+      <Screen showBack backTitle="Dashboard">
         <EmptyState
-          title="Route not available"
-          subtitle="Wait for the route to finish loading before booking tickets."
+          title="Route not loaded"
+          subtitle="Please complete Route Initialization from the command center first."
         />
       </Screen>
     );
   }
 
+  // Derive boarding stop index to offer smart previous, current, and next stop chips
+  const currentStopIndex = Math.max(
+    0,
+    stops.findIndex(
+      (s) => (s.stop_id || s.id) === draft.boardingStop || s.name === draft.boardingStop
+    )
+  );
+
+  const prevStop = currentStopIndex > 0 ? stops[currentStopIndex - 1] : null;
+  const currentStop = stops[currentStopIndex] || stops[0];
+  const nextStop = currentStopIndex < stops.length - 1 ? stops[currentStopIndex + 1] : null;
+
   const fare = calculateFare(
     route,
     draft.boardingStop,
     draft.destinationStop,
-    draft.passengerCounts,
+    draft.passengerCounts
   );
   const total = totalPassengers(draft.passengerCounts);
   const canPrint = draft.paymentMode === "cash" || paymentStatus === "success";
-
   const paymentAmount = fare.finalAmount;
 
   const startOnlinePayment = async () => {
-    setShowQr(true);
     try {
       await dispatch(verifyOnlinePayment(paymentAmount)).unwrap();
     } catch {
-      // reducer stores the failed status
+      // reducer stores failed status
     }
   };
 
   const printTicket = async () => {
+    if (total === 0) {
+      Alert.alert("Select Passengers", "Please select at least 1 passenger.");
+      return;
+    }
+    if (!draft.boardingStop || !draft.destinationStop) {
+      Alert.alert("Missing Stops", "Please select boarding and destination stops.");
+      return;
+    }
+
     setIsIssuing(true);
     try {
       const payload = {
-        shift_id: profile?.shiftId || profile?.shift || "default_shift",
+        shift_id: profile?.shiftId || profile?.shift || "shift-001",
         source_stop_id: draft.boardingStop,
         dest_stop_id: draft.destinationStop,
         passenger_count: total,
@@ -99,245 +129,425 @@ export const TicketBookingScreen = () => {
         payment_method: draft.paymentMode,
         timestamp: new Date().toISOString(),
       };
-      const response = await issueTicket(payload);
 
-      await dispatch(submitBooking({ ticket_id: response.ticket_id })).unwrap();
+      let ticketId = `TKT-${Date.now().toString().slice(-6)}`;
+      let isOfflineSaved = false;
+      try {
+        const response = await issueTicket(payload);
+        if (response?.ticket_id) {
+          ticketId = response.ticket_id;
+        }
+      } catch (apiErr) {
+        // Save to offline batch queue for auto-sync when network returns
+        isOfflineSaved = true;
+        await storage.enqueueOfflineTicket({
+          ticket_id: ticketId,
+          source_stop_id: payload.source_stop_id,
+          dest_stop_id: payload.dest_stop_id,
+          passenger_count: payload.passenger_count,
+          total_fare: payload.total_fare,
+          payment_method: payload.payment_method,
+          timestamp: payload.timestamp,
+        });
+      }
+
+      await dispatch(submitBooking({ ticket_id: ticketId })).unwrap();
       Alert.alert(
-        "Ticket saved",
-        "Digital ticket has been generated and stored locally.",
+        isOfflineSaved ? "Ticket Issued (Offline Queue)" : "Ticket Printed & Saved",
+        isOfflineSaved
+          ? `Ticket #${ticketId} saved to terminal storage. Will batch sync to Central Server on reconnection.`
+          : `Ticket #${ticketId} issued successfully for ${currency(fare.finalAmount)}.`
       );
     } catch (error) {
       Alert.alert(
         "Booking failed",
-        error instanceof Error ? error.message : "Unknown booking error",
+        error instanceof Error ? error.message : "Unknown booking error"
       );
     } finally {
       setIsIssuing(false);
     }
   };
 
+  const handleUpdateCount = (key, delta) => {
+    const current = draft.passengerCounts?.[key] || 0;
+    const nextVal = Math.max(0, current + delta);
+    dispatch(updatePassengerCounts({ [key]: nextVal }));
+  };
+
   return (
-    <Screen>
+    <Screen showBack backTitle="Dashboard">
+      {/* Screen Title */}
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title}>Ticket Booking</Text>
           <Text style={styles.subtitle}>
-            Group booking, category discounts, payment verification, and local
-            ticket storage.
+            One-handed rapid fare issuance with auto-concession rules
           </Text>
         </View>
         <StatusBadge
           label={draft.paymentMode.toUpperCase()}
-          tone={
-            draft.paymentMode === "cash"
-              ? "info"
-              : paymentStatus === "success"
-                ? "success"
-                : paymentStatus === "failed"
-                  ? "danger"
-                  : "warning"
-          }
+          tone={draft.paymentMode === "cash" ? "info" : "success"}
         />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: spacing.lg }}
-      >
-        {stops.map((stop) => (
-          <View key={stop.id} style={styles.stopChip}>
-            <Text style={styles.stopText}>{stop.name}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
+      {/* Origin Stop Section with Smart Chips */}
       <View style={styles.panel}>
-        <Text style={styles.sectionTitle}>Passenger Route</Text>
-        <View style={styles.grid2}>
-          <View style={styles.fieldWrap}>
-            <Text style={styles.label}>Boarding Stop</Text>
-            <View style={styles.selectBox}>
-              <Picker
-                selectedValue={draft.boardingStop}
-                onValueChange={(value) =>
-                  dispatch(updateDraft({ boardingStop: value }))
-                }
+        <Text style={styles.sectionTitle}>1. Boarding From</Text>
+        <Text style={styles.helperText}>
+          Quick-select from recent stops or tap the dropdown below:
+        </Text>
+
+        {/* Quick Chips Row */}
+        <View style={styles.chipRow}>
+          {prevStop && (
+            <Pressable
+              onPress={() =>
+                dispatch(updateDraft({ boardingStop: prevStop.stop_id || prevStop.id }))
+              }
+              style={[
+                styles.quickChip,
+                draft.boardingStop === (prevStop.stop_id || prevStop.id) &&
+                  styles.quickChipActive,
+              ]}
+            >
+              <Text style={styles.quickChipIcon}>⏪</Text>
+              <Text
+                style={[
+                  styles.quickChipText,
+                  draft.boardingStop === (prevStop.stop_id || prevStop.id) &&
+                    styles.quickChipTextActive,
+                ]}
+                numberOfLines={1}
               >
-                <Picker.Item label="Select boarding stop" value="" />
-                {stops.map((stop) => (
-                  <Picker.Item
-                    key={stop.id || stop.stop_id}
-                    label={stop.name}
-                    value={stop.stop_id}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-          <View style={styles.fieldWrap}>
-            <Text style={styles.label}>Destination Stop</Text>
-            <View style={styles.selectBox}>
-              <Picker
-                selectedValue={draft.destinationStop}
-                onValueChange={(value) =>
-                  dispatch(updateDraft({ destinationStop: value }))
-                }
-              >
-                <Picker.Item label="Select destination stop" value="" />
-                {stops.map((stop) => (
-                  <Picker.Item
-                    key={stop.id || stop.stop_id}
-                    label={stop.name}
-                    value={stop.stop_id}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-        </View>
+                {prevStop.name} (Prev)
+              </Text>
+            </Pressable>
+          )}
 
-        <Text style={styles.sectionTitle}>Passenger Counts</Text>
-        <View style={styles.grid2}>
-          <Field
-            label="Women"
-            value={String(draft.passengerCounts.women)}
-            onChangeText={(value) =>
-              dispatch(updatePassengerCounts({ women: Number(value || 0) }))
+          <Pressable
+            onPress={() =>
+              dispatch(updateDraft({ boardingStop: currentStop.stop_id || currentStop.id }))
             }
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Senior Citizens (75+)"
-            value={String(draft.passengerCounts.seniors)}
-            onChangeText={(value) =>
-              dispatch(updatePassengerCounts({ seniors: Number(value || 0) }))
-            }
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Children"
-            value={String(draft.passengerCounts.children)}
-            onChangeText={(value) =>
-              dispatch(updatePassengerCounts({ children: Number(value || 0) }))
-            }
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Adult Male"
-            value={String(draft.passengerCounts.adultMale)}
-            onChangeText={(value) =>
-              dispatch(updatePassengerCounts({ adultMale: Number(value || 0) }))
-            }
-            keyboardType="number-pad"
-          />
-        </View>
-        <Text style={styles.totalText}>Total passengers: {total}</Text>
-
-        <Text style={styles.sectionTitle}>Payment</Text>
-        <View style={styles.paymentRow}>
-          <PrimaryButton
-            title="Cash"
-            tone={draft.paymentMode === "cash" ? "primary" : "secondary"}
-            onPress={() => dispatch(setPaymentMode("cash"))}
-          />
-          <PrimaryButton
-            title="UPI / Online"
-            tone={draft.paymentMode === "online" ? "primary" : "secondary"}
-            onPress={() => dispatch(setPaymentMode("online"))}
-          />
-        </View>
-
-        <View style={styles.fareCard}>
-          <Text style={styles.fareTitle}>Fare Breakdown</Text>
-          <Text style={styles.fareLine}>
-            Stop pair: {fare.stopLabel ?? "Select two stops"}
-          </Text>
-          <Text style={styles.fareLine}>
-            Base fare: {currency(fare.baseFare)}
-          </Text>
-          <Text style={styles.fareLine}>
-            Passenger count: {fare.passengerCount}
-          </Text>
-          <Text style={styles.fareLine}>
-            Adjustment: -{currency(fare.discount)}
-          </Text>
-          <Text style={styles.finalFare}>
-            Final amount: {currency(fare.finalAmount)}
-          </Text>
-        </View>
-
-        {draft.paymentMode === "online" ? (
-          <View style={styles.qrCard}>
-            <Text style={styles.sectionTitle}>Online Payment</Text>
-            <Text style={styles.qrAmount}>{currency(paymentAmount)}</Text>
-            <View style={styles.qrWrap}>
-              <View style={styles.qrPlaceholder}>
-                <MaterialCommunityIcons
-                  name="qrcode-scan"
-                  size={54}
-                  color={colors.light.primary}
-                />
-                <Text style={styles.qrPlaceholderText}>Mock UPI code</Text>
-              </View>
-            </View>
-            <Text style={styles.paymentMeta}>
-              Status: {paymentStatus.toUpperCase()}
+            style={[
+              styles.quickChip,
+              draft.boardingStop === (currentStop.stop_id || currentStop.id) &&
+                styles.quickChipActive,
+            ]}
+          >
+            <Text style={styles.quickChipIcon}>📍</Text>
+            <Text
+              style={[
+                styles.quickChipText,
+                draft.boardingStop === (currentStop.stop_id || currentStop.id) &&
+                  styles.quickChipTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {currentStop.name} (GPS)
             </Text>
-            <View style={styles.paymentRow}>
-              <PrimaryButton
-                title="Verify Payment"
-                onPress={startOnlinePayment}
-                loading={paymentStatus === "pending"}
+          </Pressable>
+
+          {nextStop && (
+            <Pressable
+              onPress={() =>
+                dispatch(updateDraft({ boardingStop: nextStop.stop_id || nextStop.id }))
+              }
+              style={[
+                styles.quickChip,
+                draft.boardingStop === (nextStop.stop_id || nextStop.id) &&
+                  styles.quickChipActive,
+              ]}
+            >
+              <Text style={styles.quickChipIcon}>⏩</Text>
+              <Text
+                style={[
+                  styles.quickChipText,
+                  draft.boardingStop === (nextStop.stop_id || nextStop.id) &&
+                    styles.quickChipTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {nextStop.name} (Next)
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Full Dropdown for Boarding */}
+        <View style={styles.selectBox}>
+          <Picker
+            selectedValue={draft.boardingStop}
+            onValueChange={(value) => dispatch(updateDraft({ boardingStop: value }))}
+            style={styles.picker}
+          >
+            {stops.map((stop, idx) => (
+              <Picker.Item
+                key={stop.id || stop.stop_id || idx}
+                label={`Stop #${idx + 1}: ${stop.name}`}
+                value={stop.stop_id || stop.id}
               />
-              <PrimaryButton
-                title="Retry"
-                tone="secondary"
-                onPress={startOnlinePayment}
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      {/* Destination Stop Section */}
+      <View style={styles.panel}>
+        <Text style={styles.sectionTitle}>2. Destination To</Text>
+        <View style={styles.selectBox}>
+          <Picker
+            selectedValue={draft.destinationStop}
+            onValueChange={(value) => dispatch(updateDraft({ destinationStop: value }))}
+            style={styles.picker}
+          >
+            <Picker.Item label="Select destination stop..." value="" />
+            {stops.map((stop, idx) => (
+              <Picker.Item
+                key={stop.id || stop.stop_id || idx}
+                label={`Stop #${idx + 1}: ${stop.name}`}
+                value={stop.stop_id || stop.id}
               />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      {/* Passenger Count Section with Thumb-Friendly Steppers */}
+      <View style={styles.panel}>
+        <View style={styles.passengerHeaderRow}>
+          <Text style={styles.sectionTitle}>3. Passenger Counts</Text>
+          <Text style={styles.totalBadge}>Total: {total} Passenger{total !== 1 ? "s" : ""}</Text>
+        </View>
+
+        {/* Adult Male (General) */}
+        <View style={styles.stepperItem}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stepperTitle}>Adult Male</Text>
+            <Text style={styles.stepperSubtitle}>Full Standard Fare</Text>
+          </View>
+          <View style={styles.stepperActions}>
+            <Pressable
+              onPress={() => handleUpdateCount("adultMale", -1)}
+              style={styles.stepperBtn}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+            </Pressable>
+            <Text style={styles.stepperVal}>{draft.passengerCounts.adultMale}</Text>
+            <Pressable
+              onPress={() => handleUpdateCount("adultMale", 1)}
+              style={styles.stepperBtn}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Female (Mahila Sanman Yojana - 50% Concession) */}
+        {activeYojnas.mahilaSanman && (
+          <View style={styles.stepperItem}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.stepperTitle}>Women</Text>
+                <View style={styles.schemeTag}>
+                  <Text style={styles.schemeTagText}>50% Off</Text>
+                </View>
+              </View>
+              <Text style={styles.stepperSubtitle}>Mahila Sanman Yojana</Text>
+            </View>
+            <View style={styles.stepperActions}>
+              <Pressable
+                onPress={() => handleUpdateCount("women", -1)}
+                style={styles.stepperBtn}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+              </Pressable>
+              <Text style={styles.stepperVal}>{draft.passengerCounts.women}</Text>
+              <Pressable
+                onPress={() => handleUpdateCount("women", 1)}
+                style={styles.stepperBtn}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+              </Pressable>
             </View>
           </View>
-        ) : null}
+        )}
 
+        {/* Senior Citizens (Concession) */}
+        {activeYojnas.seniorCitizen && (
+          <View style={styles.stepperItem}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.stepperTitle}>Senior Citizens</Text>
+                <View style={[styles.schemeTag, { backgroundColor: "#e0f2fe" }]}>
+                  <Text style={[styles.schemeTagText, { color: "#0369a1" }]}>75+ Free</Text>
+                </View>
+              </View>
+              <Text style={styles.stepperSubtitle}>Amrit Varishtha Concession</Text>
+            </View>
+            <View style={styles.stepperActions}>
+              <Pressable
+                onPress={() => handleUpdateCount("seniors", -1)}
+                style={styles.stepperBtn}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+              </Pressable>
+              <Text style={styles.stepperVal}>{draft.passengerCounts.seniors}</Text>
+              <Pressable
+                onPress={() => handleUpdateCount("seniors", 1)}
+                style={styles.stepperBtn}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Children (Half Ticket) */}
+        {activeYojnas.childConcession && (
+          <View style={[styles.stepperItem, { borderBottomWidth: 0 }]}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.stepperTitle}>Children (5-12)</Text>
+                <View style={[styles.schemeTag, { backgroundColor: "#fef3c7" }]}>
+                  <Text style={[styles.schemeTagText, { color: "#b45309" }]}>Half Fare</Text>
+                </View>
+              </View>
+              <Text style={styles.stepperSubtitle}>Standard Child Ticket</Text>
+            </View>
+            <View style={styles.stepperActions}>
+              <Pressable
+                onPress={() => handleUpdateCount("children", -1)}
+                style={styles.stepperBtn}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+              </Pressable>
+              <Text style={styles.stepperVal}>{draft.passengerCounts.children}</Text>
+              <Pressable
+                onPress={() => handleUpdateCount("children", 1)}
+                style={styles.stepperBtn}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Payment Mode Selection */}
+      <View style={styles.panel}>
+        <Text style={styles.sectionTitle}>4. Payment Mode</Text>
         <View style={styles.paymentRow}>
+          <Pressable
+            onPress={() => dispatch(setPaymentMode("cash"))}
+            style={[
+              styles.payModeBtn,
+              draft.paymentMode === "cash" && styles.payModeBtnActive,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="cash"
+              size={24}
+              color={draft.paymentMode === "cash" ? "#fff" : colors.light.text}
+            />
+            <Text
+              style={[
+                styles.payModeText,
+                draft.paymentMode === "cash" && styles.payModeTextActive,
+              ]}
+            >
+              Cash (Print)
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => dispatch(setPaymentMode("online"))}
+            style={[
+              styles.payModeBtn,
+              draft.paymentMode === "online" && styles.payModeBtnActive,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="qrcode-scan"
+              size={22}
+              color={draft.paymentMode === "online" ? "#fff" : colors.light.text}
+            />
+            <Text
+              style={[
+                styles.payModeText,
+                draft.paymentMode === "online" && styles.payModeTextActive,
+              ]}
+            >
+              UPI / QR
+            </Text>
+          </Pressable>
+        </View>
+
+        {draft.paymentMode === "online" && (
+          <View style={styles.onlinePayBox}>
+            <Text style={styles.onlinePayTitle}>UPI Payment Verification</Text>
+            <Text style={styles.onlinePayAmount}>{currency(paymentAmount)}</Text>
+            <PrimaryButton
+              title={paymentStatus === "success" ? "✓ Payment Confirmed" : "Verify UPI Received"}
+              tone={paymentStatus === "success" ? "success" : "primary"}
+              onPress={startOnlinePayment}
+              loading={paymentStatus === "pending"}
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Fare Breakdown Card */}
+      <View style={styles.fareSummaryCard}>
+        <View style={styles.fareSummaryRow}>
+          <Text style={styles.fareSummaryLabel}>Journey:</Text>
+          <Text style={styles.fareSummaryVal}>{fare.stopLabel || "Select Stops"}</Text>
+        </View>
+        <View style={styles.fareSummaryRow}>
+          <Text style={styles.fareSummaryLabel}>Base Rate / Passenger:</Text>
+          <Text style={styles.fareSummaryVal}>{currency(fare.baseFare)}</Text>
+        </View>
+        {fare.discount > 0 && (
+          <View style={styles.fareSummaryRow}>
+            <Text style={[styles.fareSummaryLabel, { color: colors.light.success }]}>
+              Yojana Concessions:
+            </Text>
+            <Text style={[styles.fareSummaryVal, { color: colors.light.success }]}>
+              -{currency(fare.discount)}
+            </Text>
+          </View>
+        )}
+        <View style={[styles.fareSummaryRow, styles.finalFareRow]}>
+          <Text style={styles.finalFareLabel}>Total Fare to Collect:</Text>
+          <Text style={styles.finalFareAmount}>{currency(fare.finalAmount)}</Text>
+        </View>
+      </View>
+
+      {/* Issue Action Buttons */}
+      <View style={styles.actionRow}>
+        <View style={{ flex: 2 }}>
           <PrimaryButton
-            title={canPrint ? "Print Ticket" : "Await Payment"}
+            title={isIssuing ? "Printing..." : `Print Ticket • ${currency(fare.finalAmount)}`}
             onPress={printTicket}
-            loading={bookingStatus === "pending" || isIssuing}
-            disabled={!canPrint}
+            loading={isIssuing}
+            disabled={!canPrint || total === 0}
           />
+        </View>
+        <View style={{ flex: 1 }}>
           <PrimaryButton
-            title="Clear Stops"
+            title="Reset"
             tone="secondary"
             onPress={() => dispatch(clearBookingStops())}
           />
         </View>
-
-        {bookingError ? <Text style={styles.error}>{bookingError}</Text> : null}
-        {currentTicket ? (
-          <Text style={styles.success}>
-            Ticket {currentTicket.ticketId} generated at{" "}
-            {timeLabel(currentTicket.timestamp)}
-          </Text>
-        ) : null}
       </View>
-
-      <Modal visible={showQr} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <MaterialCommunityIcons
-              name="cellphone-wireless"
-              size={42}
-              color={colors.light.primary}
-            />
-            <Text style={styles.modalTitle}>Payment Gateway</Text>
-            <Text style={styles.modalText}>
-              Waiting for UPI confirmation from the mock payment service.
-            </Text>
-            <PrimaryButton title="Close" onPress={() => setShowQr(false)} />
-          </View>
-        </View>
-      </Modal>
     </Screen>
   );
 };
@@ -345,141 +555,234 @@ export const TicketBookingScreen = () => {
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.md,
   },
-  title: { color: colors.light.text, fontSize: 24, fontWeight: "900" },
-  subtitle: { color: colors.light.textMuted, marginTop: 6, maxWidth: 700 },
-  stopChip: {
-    backgroundColor: colors.light.surfaceAlt,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radii.xl,
-    marginRight: spacing.sm,
+  title: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: colors.light.text,
   },
-  stopText: { color: colors.light.text, fontWeight: "700" },
+  subtitle: {
+    fontSize: 13,
+    color: colors.light.textMuted,
+    marginTop: 2,
+  },
   panel: {
     backgroundColor: colors.light.surface,
     borderRadius: radii.xl,
-    padding: spacing.xl,
-  },
-  sectionTitle: {
-    color: colors.light.text,
-    fontSize: 18,
-    fontWeight: "800",
+    padding: spacing.lg,
     marginBottom: spacing.md,
-  },
-  grid2: { gap: spacing.md },
-  fieldWrap: { marginBottom: spacing.md },
-  label: { color: colors.light.text, marginBottom: 8, fontWeight: "700" },
-  selectBox: {
     borderWidth: 1,
     borderColor: colors.light.border,
-    borderRadius: radii.md,
-    overflow: "hidden",
-    backgroundColor: colors.light.surfaceAlt,
   },
-  totalText: {
-    color: colors.light.text,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: "800",
-    marginBottom: spacing.lg,
+    color: colors.light.text,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.light.textMuted,
+    marginTop: 2,
+    marginBottom: spacing.sm,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    flexWrap: "wrap",
+  },
+  quickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.light.surfaceAlt,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+  },
+  quickChipActive: {
+    backgroundColor: colors.light.primarySoft,
+    borderColor: colors.light.primary,
+  },
+  quickChipIcon: {
+    fontSize: 13,
+    marginRight: 4,
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.light.text,
+  },
+  quickChipTextActive: {
+    color: colors.light.primary,
+  },
+  selectBox: {
+    backgroundColor: colors.light.surfaceAlt,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+    overflow: "hidden",
+  },
+  picker: {
+    height: 50,
+    width: "100%",
+  },
+  passengerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  totalBadge: {
+    backgroundColor: colors.light.primarySoft,
+    color: colors.light.primary,
+    fontWeight: "800",
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+  },
+  stepperItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.light.border,
+  },
+  stepperTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.light.text,
+  },
+  stepperSubtitle: {
+    fontSize: 12,
+    color: colors.light.textMuted,
+    marginTop: 2,
+  },
+  schemeTag: {
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  schemeTagText: {
+    color: "#15803d",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  stepperActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.light.surfaceAlt,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+  },
+  stepperBtn: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperVal: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: colors.light.text,
+    minWidth: 32,
+    textAlign: "center",
   },
   paymentRow: {
     flexDirection: "row",
     gap: spacing.md,
-    flexWrap: "wrap",
-    marginBottom: spacing.md,
-  },
-  fareCard: {
-    backgroundColor: "#eef4ff",
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  fareTitle: {
-    qrWrap: { marginTop: spacing.md, alignItems: "center" },
-    qrPlaceholder: {
-      width: 180,
-      height: 180,
-      borderRadius: radii.lg,
-      borderWidth: 2,
-      borderStyle: "dashed",
-      borderColor: colors.light.primary,
-      backgroundColor: "#ffffff",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    qrPlaceholderText: {
-      marginTop: 8,
-      fontWeight: "700",
-      color: colors.light.textMuted,
-    },
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  fareLine: { color: colors.light.textMuted, marginTop: 4 },
-  finalFare: {
-    color: colors.light.text,
-    fontSize: 20,
-    fontWeight: "900",
     marginTop: spacing.sm,
   },
-  qrCard: {
-    marginBottom: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: radii.lg,
+  payModeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: radii.md,
+    backgroundColor: colors.light.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+  },
+  payModeBtnActive: {
+    backgroundColor: colors.light.primary,
+    borderColor: colors.light.primary,
+  },
+  payModeText: {
+    fontWeight: "800",
+    fontSize: 14,
+    color: colors.light.text,
+  },
+  payModeTextActive: {
+    color: "#fff",
+  },
+  onlinePayBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.md,
     backgroundColor: colors.light.surfaceAlt,
     alignItems: "center",
   },
-  qrWrap: {
-    padding: spacing.md,
-    backgroundColor: "#fff",
-    borderRadius: radii.md,
-    marginTop: spacing.md,
+  onlinePayTitle: {
+    fontSize: 13,
+    color: colors.light.textMuted,
+    fontWeight: "600",
   },
-  qrAmount: {
-    color: colors.light.primary,
+  onlinePayAmount: {
     fontSize: 26,
     fontWeight: "900",
-    marginTop: spacing.sm,
-  },
-  paymentMeta: { color: colors.light.textMuted, marginTop: spacing.sm },
-  error: {
-    color: colors.light.danger,
-    marginTop: spacing.sm,
-    fontWeight: "700",
-  },
-  success: {
-    color: colors.light.success,
-    marginTop: spacing.sm,
-    fontWeight: "700",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "#00000080",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  modalCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    width: "100%",
-    maxWidth: 360,
-    alignItems: "center",
-  },
-  modalTitle: {
     color: colors.light.text,
-    fontSize: 22,
-    fontWeight: "900",
-    marginTop: spacing.md,
+    marginVertical: spacing.sm,
   },
-  modalText: {
-    color: colors.light.textMuted,
-    textAlign: "center",
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
+  fareSummaryCard: {
+    backgroundColor: "#0b1f33",
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  fareSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  fareSummaryLabel: {
+    color: "#93a6bd",
+    fontSize: 13,
+  },
+  fareSummaryVal: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  finalFareRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#20334d",
+    alignItems: "center",
+  },
+  finalFareLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  finalFareAmount: {
+    color: "#4ade80",
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
 });
