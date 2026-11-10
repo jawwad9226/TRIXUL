@@ -3,7 +3,7 @@
 // Imports: animation primitives, icon set, and theme colors.
 // Behavior: Runs a looped animation until the splash flow ends.
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View, Platform } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { colors } from "../constants/theme";
@@ -11,6 +11,7 @@ import { colors } from "../constants/theme";
 export const BusAnimation = () => {
   const slide = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0.75)).current;
+  const isWeb = Platform.OS === 'web';
 
   useEffect(() => {
     Animated.loop(
@@ -20,29 +21,29 @@ export const BusAnimation = () => {
             toValue: 1,
             duration: 1600,
             easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver: !isWeb,
           }),
           Animated.timing(slide, {
             toValue: 0,
             duration: 0,
-            useNativeDriver: true,
+            useNativeDriver: !isWeb,
           }),
         ]),
         Animated.sequence([
           Animated.timing(pulse, {
             toValue: 1,
             duration: 900,
-            useNativeDriver: true,
+            useNativeDriver: !isWeb,
           }),
           Animated.timing(pulse, {
             toValue: 0.75,
             duration: 900,
-            useNativeDriver: true,
+            useNativeDriver: !isWeb,
           }),
         ]),
       ]),
     ).start();
-  }, [pulse, slide]);
+  }, [pulse, slide, isWeb]);
 
   return (
     <View style={styles.wrap}>

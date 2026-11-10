@@ -142,7 +142,20 @@ class TelemetryService:
         if not shift:
             shift = Shift.objects.filter(status='Active').first()
         if not shift:
-            return {"status": "error", "message": "No active shift found"}
+            # Auto-provision active shift so heartbeat telemetry is tracked in PostgreSQL
+            route = Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         current_location = Point(longitude, latitude, srid=4326)
 
@@ -207,12 +220,6 @@ class TicketingService:
         total_fare = Decimal(str(data['total_fare']))
         timestamp = data['timestamp']
 
-        shift = Shift.objects.filter(shift_id=shift_id).first()
-        if not shift:
-            shift = Shift.objects.filter(status='Active').first()
-        if not shift:
-            return {"status": "error", "message": "No active shift found"}
-
         # Find source and destination stops by ID or Name
         source_stop = (
             Stop.objects.filter(stop_id=source_stop_id).first()
@@ -225,6 +232,25 @@ class TicketingService:
 
         if not source_stop or not dest_stop:
             return {"status": "error", "message": "Invalid boarding or destination stop"}
+
+        shift = Shift.objects.filter(shift_id=shift_id).first()
+        if not shift:
+            shift = Shift.objects.filter(status='Active').first()
+        if not shift:
+            # Auto-provision active shift linked to stop route so ticket and revenue are tracked in PostgreSQL
+            route = source_stop.routestop_set.first().route if source_stop.routestop_set.exists() else Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         # Generate unique ticket ID
         ticket_id = f"TKT-{shift.route.route_id.split('-')[-1]}-{str(uuid.uuid4().int)[:6]}"
@@ -265,7 +291,19 @@ class TicketingService:
         if not shift:
             shift = Shift.objects.filter(status='Active').first()
         if not shift:
-            return {"status": "error", "message": "No active shift found"}
+            route = Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         created_tickets = []
         duplicate_count = 0
@@ -1006,7 +1044,19 @@ class AdminIncidentService:
         if not shift:
             shift = Shift.objects.filter(status='Active').first()
         if not shift:
-            return {"status": "error", "message": "No active shift found"}
+            route = Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         lat = data.get('latitude')
         lng = data.get('longitude')

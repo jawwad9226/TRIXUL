@@ -1,7 +1,7 @@
 // File: src/screens/BusStatusScreen.js
 // Purpose: Unified Trip & GPS Status screen merging route progress, ETA, and live GPS reporting.
 import React, { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 
@@ -14,6 +14,9 @@ import { updateBusAssignment } from "../store/slices/conductorSlice";
 import { sendHeartbeat } from "../services/api";
 
 export const BusStatusScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const theme = colors[scheme];
+
   const dispatch = useAppDispatch();
   const status = useAppSelector((state) => state.bus.status);
   const loading = useAppSelector((state) => state.bus.loading);
@@ -81,8 +84,8 @@ export const BusStatusScreen = () => {
     <Screen showBack backTitle="Dashboard">
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Trip & GPS Status</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: theme.text }]}>Trip & GPS Status</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
             Live route movement, ETA calculations, and GPS heartbeat
           </Text>
         </View>
@@ -123,10 +126,10 @@ export const BusStatusScreen = () => {
       </View>
 
       {/* Route Stop Progress Spine */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Route Station Timeline</Text>
-          <Text style={styles.cardSub}>{route?.route_name || "Operational Route"}</Text>
+      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.cardHeader, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Route Station Timeline</Text>
+          <Text style={[styles.cardSub, { color: theme.textMuted }]}>{route?.route_name || "Operational Route"}</Text>
         </View>
 
         <View style={styles.timelineContainer}>
@@ -141,6 +144,7 @@ export const BusStatusScreen = () => {
                   <View
                     style={[
                       styles.stopNode,
+                      { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
                       isCurrent && styles.stopNodeCurrent,
                       isPassed && styles.stopNodePassed,
                     ]}
@@ -157,6 +161,7 @@ export const BusStatusScreen = () => {
                     <View
                       style={[
                         styles.spineLine,
+                        { backgroundColor: theme.border },
                         isPassed && styles.spineLinePassed,
                       ]}
                     />
@@ -168,12 +173,13 @@ export const BusStatusScreen = () => {
                     <Text
                       style={[
                         styles.stopName,
+                        { color: theme.text },
                         isCurrent && styles.stopNameCurrent,
                       ]}
                     >
                       {stop.name}
                     </Text>
-                    <Text style={styles.stopDetail}>
+                    <Text style={[styles.stopDetail, { color: theme.textMuted }]}>
                       {isCurrent
                         ? "Currently here • Bus boarding"
                         : isPassed

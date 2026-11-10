@@ -3,20 +3,23 @@
 // Imports: theme colors and spacing.
 // Behavior: Optional action text gives screens a shared header interaction.
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 
 import { colors, spacing } from "../constants/theme";
 
-export const SectionHeader = ({ title, actionLabel, onAction }) => (
-  <View style={styles.row}>
-    <Text style={styles.title}>{title}</Text>
-    {actionLabel ? (
-      <Pressable onPress={onAction}>
-        <Text style={styles.action}>{actionLabel}</Text>
-      </Pressable>
-    ) : null}
-  </View>
-);
+export const SectionHeader = ({ title, actionLabel, onAction }) => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  return (
+    <View style={styles.row}>
+      <Text style={[styles.title, { color: colors[scheme].text }]}>{title}</Text>
+      {actionLabel ? (
+        <Pressable onPress={onAction}>
+          <Text style={[styles.action, { color: colors[scheme].primary }]}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   row: {
@@ -25,6 +28,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.md,
   },
-  title: { color: colors.light.text, fontSize: 18, fontWeight: "700" },
-  action: { color: colors.light.primary, fontWeight: "700" },
+  title: { fontSize: 18, fontWeight: "700" },
+  action: { fontWeight: "700" },
 });

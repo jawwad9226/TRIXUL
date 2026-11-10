@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { FlatList, StyleSheet, Text, TextInput, View, Pressable, RefreshControl } from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, View, Pressable, RefreshControl, useColorScheme } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { EmptyState } from "../components/EmptyState";
@@ -12,6 +12,9 @@ import { fetchActiveFleet } from "../services/api";
 import { storage } from "../services/storage";
 
 export const OtherBusRoutesScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const theme = colors[scheme];
+
   const dispatch = useAppDispatch();
   const buses = useAppSelector((state) => state.bus.activeBuses);
   const [query, setQuery] = useState("");
@@ -55,18 +58,25 @@ export const OtherBusRoutesScreen = () => {
 
   return (
     <Screen scroll={false}>
-      <Text style={styles.title}>Other Bus Routes</Text>
-      <Text style={styles.subtitle}>
+      <Text style={[styles.title, { color: theme.text }]}>Other Bus Routes</Text>
+      <Text style={[styles.subtitle, { color: theme.textMuted }]}>
         Track active fleet vehicles by bus number or route.
       </Text>
 
       {buses.length > 0 && (
         <TextInput
           placeholder="Search buses or routes"
-          placeholderTextColor={colors.light.textMuted}
+          placeholderTextColor={theme.textMuted}
           value={query}
           onChangeText={setQuery}
-          style={styles.search}
+          style={[
+            styles.search,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
         />
       )}
 
@@ -81,11 +91,11 @@ export const OtherBusRoutesScreen = () => {
           keyExtractor={(item) => item.busId}
           style={styles.list}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={styles.cardTop}>
                 <View>
-                  <Text style={styles.busNumber}>{item.busNumber}</Text>
-                  <Text style={styles.routeName}>{item.routeName}</Text>
+                  <Text style={[styles.busNumber, { color: theme.text }]}>{item.busNumber}</Text>
+                  <Text style={[styles.routeName, { color: theme.textMuted }]}>{item.routeName}</Text>
                 </View>
                 <StatusBadge
                   label={item.status}

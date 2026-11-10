@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View, Alert } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View, Alert, Platform, useColorScheme } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 
@@ -11,7 +11,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
-import { updateBusAssignment } from "../store/slices/conductorSlice";
+import { updateBusAssignment, setProfile } from "../store/slices/conductorSlice";
 import { sendHeartbeat, batchSyncTickets } from "../services/api";
 import { storage } from "../services/storage";
 
@@ -71,6 +71,9 @@ const cards = [
 ];
 
 export const DashboardScreen = ({ navigation }) => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const theme = colors[scheme];
+
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.conductor.profile);
   const route = useAppSelector((state) => state.route.route);
@@ -135,8 +138,9 @@ export const DashboardScreen = ({ navigation }) => {
         ? `${currentOccupancy}/${totalCapacity} Standing`
         : `${currentOccupancy}/${totalCapacity} Seated`;
 
-  const handleSendTelemetry = async () => {
-    dispatch(setBusLoading(true));
+  // Live GPS Telemetry Broadcast (Supports quiet background broadcasting and manual trigger)
+  const handleSendTelemetry = async (manual = false) => {
+    if (manual) dispatch(setBusLoading(true));
     try {
       let lat = route?.stops?.[0]?.latitude || 20.7002;
       let lng = route?.stops?.[0]?.longitude || 77.0022;
@@ -165,6 +169,23 @@ export const DashboardScreen = ({ navigation }) => {
       const response = await sendHeartbeat(payload);
       setIsOnline(true);
 
+      // Check if Admin closed shift from depot
+      if (response?.shift_status === 'Completed') {
+        const msg = "This shift has been completed by the depot dispatcher. Please re-link or start your next shift.";
+        if (Platform.OS === 'web') {
+          window.alert(`Shift Closed\n\n${msg}`);
+        } else {
+          Alert.alert("Shift Closed", msg);
+        }
+        dispatch(setProfile(null));
+        await storage.clearConductorData();
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Initializer" }],
+        });
+        return;
+      }
+
       // Mid-Shift Bus Swap Detection
       if (response?.bus_number && response.bus_number !== profile?.busNumber) {
         dispatch(updateBusAssignment({
@@ -181,28 +202,62 @@ export const DashboardScreen = ({ navigation }) => {
         speed: payload.speed,
       }));
 
-      Alert.alert("Telemetry Synced", `Live GPS reported to dispatch. Bus: ${response?.bus_number || profile?.busNumber || "Active"}`);
+      if (manual) {
+        Alert.alert("Telemetry Synced", `Live GPS reported to dispatch. Bus: ${response?.bus_number || profile?.busNumber || "Active"}`);
+      }
     } catch (error) {
       setIsOnline(false);
       dispatch(setBusError(error.message));
-      Alert.alert("Telemetry Notice", "GPS saved locally. Dispatch sync will retry when online.");
+      if (manual) {
+        Alert.alert("Telemetry Notice", "GPS saved locally. Dispatch sync will retry when online.");
+      }
     } finally {
-      dispatch(setBusLoading(false));
+      if (manual) dispatch(setBusLoading(false));
     }
   };
 
+  // Automatic Background GPS Telemetry Streaming every 10 seconds
+  useEffect(() => {
+    if (profile?.shiftId) {
+      handleSendTelemetry(false);
+      const telemetryInterval = setInterval(() => {
+        handleSendTelemetry(false);
+      }, 10000);
+      return () => clearInterval(telemetryInterval);
+    }
+  }, [profile?.shiftId]);
+
+  // End Shift / Re-link with cross-platform web and native support
   const handleEndShift = () => {
-    Alert.alert(
-      "Shift Management",
-      "Do you want to re-link route data or switch conductor shift?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Re-link Route / Shift",
-          onPress: () => navigation.navigate("Initializer"),
-        },
-      ]
-    );
+    const doEnd = async () => {
+      dispatch(setProfile(null));
+      try {
+        await storage.clearConductorData();
+      } catch (e) {}
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Initializer" }],
+      });
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("End Shift / Re-link\n\nDo you want to end your current duty shift and return to Initializer?")) {
+        doEnd();
+      }
+    } else {
+      Alert.alert(
+        "End Shift / Re-link",
+        "Do you want to end your current duty shift and return to Initializer?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "End Shift",
+            style: "destructive",
+            onPress: doEnd,
+          },
+        ]
+      );
+    }
   };
 
   const columns = 2;
@@ -211,37 +266,37 @@ export const DashboardScreen = ({ navigation }) => {
     <Screen>
       {loading ? (
         <>
-          <View style={[styles.hero, styles.skeletonBox]} />
+          <View style={[styles.hero, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }, styles.skeletonBox]} />
           <View style={styles.metricsRow}>
-            <View style={[styles.skeletonPill]} />
-            <View style={[styles.skeletonPill]} />
-            <View style={[styles.skeletonPill]} />
+            <View style={[styles.skeletonPill, { backgroundColor: theme.surfaceAlt }]} />
+            <View style={[styles.skeletonPill, { backgroundColor: theme.surfaceAlt }]} />
+            <View style={[styles.skeletonPill, { backgroundColor: theme.surfaceAlt }]} />
           </View>
           <SectionHeader title="Operations" />
           <View style={styles.cardGrid}>
             <View style={styles.cardRow}>
-              <View style={[styles.skeletonCard, styles.cardCell]} />
-              <View style={[styles.skeletonCard, styles.cardCell]} />
+              <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }, styles.cardCell]} />
+              <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }, styles.cardCell]} />
             </View>
             <View style={styles.cardRow}>
-              <View style={[styles.skeletonCard, styles.cardCell]} />
-              <View style={[styles.skeletonCard, styles.cardCell]} />
+              <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }, styles.cardCell]} />
+              <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }, styles.cardCell]} />
             </View>
           </View>
         </>
       ) : (
         <>
           {/* Header Card */}
-          <View style={styles.hero}>
+          <View style={[styles.hero, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={{ flex: 1, paddingRight: spacing.md }}>
-              <Text style={styles.kicker}>Smart ETM Command Center</Text>
-              <Text style={styles.title}>
+              <Text style={[styles.kicker, { color: theme.primary }]}>Smart ETM Command Center</Text>
+              <Text style={[styles.title, { color: theme.text }]}>
                 {profile?.conductorName || "Active Conductor"}
               </Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: theme.text }]}>
                 {route?.route_name || "Route In Transit"}
               </Text>
-              <Text style={styles.shiftTag}>
+              <Text style={[styles.shiftTag, { color: theme.textMuted }]}>
                 Bus: {profile?.busNumber || route?.busNumber || "Standby"} • Shift: {profile?.shiftId || "Active"}
               </Text>
             </View>
@@ -252,13 +307,13 @@ export const DashboardScreen = ({ navigation }) => {
               />
               <Pressable
                 onPress={() => navigation.navigate("Updates")}
-                style={styles.bellButton}
+                style={[styles.bellButton, { backgroundColor: theme.surfaceAlt }]}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons
                   name="bell-outline"
                   size={20}
-                  color={colors.light.text}
+                  color={theme.text}
                 />
               </Pressable>
             </View>
@@ -312,30 +367,43 @@ export const DashboardScreen = ({ navigation }) => {
           {/* Bottom Bar: Sync Telemetry & End Shift / Re-link */}
           <View style={styles.bottomBar}>
             <Pressable
-              onPress={handleSendTelemetry}
-              style={[styles.bottomBtn, styles.syncBtn]}
+              onPress={() => handleSendTelemetry(true)}
+              style={[
+                styles.bottomBtn,
+                styles.syncBtn,
+                { backgroundColor: theme.primarySoft, borderColor: theme.primary }
+              ]}
               disabled={loadingBus}
             >
               <MaterialCommunityIcons
                 name="sync"
                 size={18}
-                color={colors.light.primary}
+                color={theme.primary}
               />
-              <Text style={styles.syncBtnText}>
+              <Text style={[styles.syncBtnText, { color: theme.primary }]}>
                 {loadingBus ? "Syncing..." : "Sync Telemetry"}
               </Text>
             </Pressable>
 
             <Pressable
               onPress={handleEndShift}
-              style={[styles.bottomBtn, styles.relinkBtn]}
+              style={[
+                styles.bottomBtn,
+                styles.relinkBtn,
+                {
+                  backgroundColor: scheme === "dark" ? "#2a1215" : "#fff1f2",
+                  borderColor: "#ef4444",
+                }
+              ]}
             >
               <MaterialCommunityIcons
                 name="logout-variant"
                 size={18}
-                color={colors.light.textMuted}
+                color="#ef4444"
               />
-              <Text style={styles.relinkBtnText}>End Shift / Re-link</Text>
+              <Text style={[styles.relinkBtnText, { color: "#ef4444" }]}>
+                End Shift / Re-link
+              </Text>
             </Pressable>
           </View>
         </>
@@ -346,7 +414,6 @@ export const DashboardScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   hero: {
-    backgroundColor: colors.light.surface,
     borderRadius: radii.xl,
     padding: spacing.xl,
     flexDirection: "row",
@@ -354,41 +421,36 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.light.border,
   },
   headerRight: {
     alignItems: "flex-end",
     gap: spacing.sm,
   },
   bellButton: {
-    backgroundColor: colors.light.surfaceAlt,
     padding: spacing.sm,
     borderRadius: radii.md,
     marginTop: 4,
   },
   kicker: {
-    color: colors.light.primary,
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 1.1,
     fontSize: 11,
   },
   title: {
-    color: colors.light.text,
     fontSize: 22,
     fontWeight: "900",
     marginTop: 4,
   },
   subtitle: {
-    color: colors.light.text,
     fontWeight: "600",
     marginTop: 4,
     fontSize: 14,
   },
   shiftTag: {
-    color: colors.light.textMuted,
     marginTop: 4,
     fontSize: 12,
+    fontWeight: "600",
   },
   metricsRow: {
     flexDirection: "row",
@@ -418,42 +480,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: spacing.md,
     borderRadius: radii.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
-  syncBtn: {
-    backgroundColor: colors.light.primarySoft,
-    borderColor: colors.light.primary,
-  },
+  syncBtn: {},
   syncBtnText: {
-    color: colors.light.primary,
     fontWeight: "700",
     fontSize: 14,
     marginLeft: 6,
   },
-  relinkBtn: {
-    backgroundColor: colors.light.surface,
-    borderColor: colors.light.border,
-  },
+  relinkBtn: {},
   relinkBtnText: {
-    color: colors.light.textMuted,
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 14,
     marginLeft: 6,
   },
   skeletonBox: {
-    backgroundColor: "#e6e9ee",
     height: 110,
     borderRadius: radii.xl,
     marginBottom: spacing.lg,
   },
   skeletonPill: {
-    backgroundColor: "#eef2f6",
     height: 48,
     flex: 1,
     borderRadius: radii.md,
   },
   skeletonCard: {
-    backgroundColor: "#eef2f6",
     height: 110,
     borderRadius: radii.md,
   },
