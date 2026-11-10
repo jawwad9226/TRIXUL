@@ -370,7 +370,17 @@ export const TicketBookingScreen = () => {
       <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.passengerHeaderRow}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>3. Passenger Counts</Text>
-          <Text style={styles.totalBadge}>Total: {total} Passenger{total !== 1 ? "s" : ""}</Text>
+          <Text
+            style={[
+              styles.totalBadge,
+              {
+                backgroundColor: isDark ? "#183255" : colors.light.primarySoft,
+                color: theme.primary,
+              },
+            ]}
+          >
+            Total: {total} Passenger{total !== 1 ? "s" : ""}
+          </Text>
         </View>
 
         {/* Adult Male (General) */}
@@ -379,18 +389,30 @@ export const TicketBookingScreen = () => {
             <Text style={[styles.stepperTitle, { color: theme.text }]}>Adult Male</Text>
             <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Full Standard Fare</Text>
           </View>
-          <View style={styles.stepperActions}>
+          <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
             <Pressable
               onPress={() => handleUpdateCount("adultMale", -1)}
-              style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+              style={styles.stepperBtn}
               hitSlop={8}
             >
               <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
             </Pressable>
-            <Text style={[styles.stepperVal, { color: theme.text }]}>{draft.passengerCounts.adultMale}</Text>
+            <View
+              style={[
+                styles.stepperValBox,
+                {
+                  backgroundColor: isDark ? "#07111f" : "#ffffff",
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Text style={[styles.stepperVal, { color: theme.text }]}>
+                {draft.passengerCounts.adultMale}
+              </Text>
+            </View>
             <Pressable
               onPress={() => handleUpdateCount("adultMale", 1)}
-              style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+              style={styles.stepperBtn}
               hitSlop={8}
             >
               <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
@@ -410,18 +432,30 @@ export const TicketBookingScreen = () => {
               </View>
               <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Mahila Sanman Yojana</Text>
             </View>
-            <View style={styles.stepperActions}>
+            <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
               <Pressable
                 onPress={() => handleUpdateCount("women", -1)}
-                style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                style={styles.stepperBtn}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
               </Pressable>
-              <Text style={[styles.stepperVal, { color: theme.text }]}>{draft.passengerCounts.women}</Text>
+              <View
+                style={[
+                  styles.stepperValBox,
+                  {
+                    backgroundColor: isDark ? "#07111f" : "#ffffff",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.stepperVal, { color: theme.text }]}>
+                  {draft.passengerCounts.women}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => handleUpdateCount("women", 1)}
-                style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                style={styles.stepperBtn}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
@@ -442,18 +476,30 @@ export const TicketBookingScreen = () => {
               </View>
               <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Amrit Varishtha Concession</Text>
             </View>
-            <View style={styles.stepperActions}>
+            <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
               <Pressable
                 onPress={() => handleUpdateCount("seniors", -1)}
-                style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                style={styles.stepperBtn}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
               </Pressable>
-              <Text style={[styles.stepperVal, { color: theme.text }]}>{draft.passengerCounts.seniors}</Text>
+              <View
+                style={[
+                  styles.stepperValBox,
+                  {
+                    backgroundColor: isDark ? "#07111f" : "#ffffff",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.stepperVal, { color: theme.text }]}>
+                  {draft.passengerCounts.seniors}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => handleUpdateCount("seniors", 1)}
-                style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                style={styles.stepperBtn}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
@@ -474,18 +520,30 @@ export const TicketBookingScreen = () => {
               </View>
               <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Standard Child Ticket</Text>
             </View>
-            <View style={styles.stepperActions}>
+            <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
               <Pressable
                 onPress={() => handleUpdateCount("children", -1)}
-                style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                style={styles.stepperBtn}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
               </Pressable>
-              <Text style={[styles.stepperVal, { color: theme.text }]}>{draft.passengerCounts.children}</Text>
+              <View
+                style={[
+                  styles.stepperValBox,
+                  {
+                    backgroundColor: isDark ? "#07111f" : "#ffffff",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.stepperVal, { color: theme.text }]}>
+                  {draft.passengerCounts.children}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => handleUpdateCount("children", 1)}
-                style={[styles.stepperBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                style={styles.stepperBtn}
                 hitSlop={8}
               >
                 <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
@@ -744,22 +802,27 @@ const styles = StyleSheet.create({
   stepperActions: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.light.surfaceAlt,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    overflow: "hidden",
   },
   stepperBtn: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
+  },
+  stepperValBox: {
+    minWidth: 44,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
   },
   stepperVal: {
     fontSize: 18,
     fontWeight: "900",
-    color: colors.light.text,
-    minWidth: 32,
     textAlign: "center",
   },
   paymentRow: {

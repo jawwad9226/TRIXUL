@@ -14,7 +14,7 @@ import {
 import { Provider } from "react-redux";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { useColorScheme } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 
 import { store } from "./src/store";
 import { navigationTheme } from "./src/constants/theme";
@@ -24,6 +24,19 @@ export default function App() {
   // This keeps the app theme in sync with the phone's dark/light mode.
   const scheme = useColorScheme();
   const theme = scheme === "dark" ? DarkTheme : DefaultTheme;
+
+  // Web accessibility helper: prevent retained focus on aria-hidden background screens
+  React.useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const handleFocusIn = () => {
+        if (document.activeElement?.closest?.('[aria-hidden="true"], [style*="display: none"]')) {
+          document.activeElement.blur?.();
+        }
+      };
+      window.addEventListener("focusin", handleFocusIn);
+      return () => window.removeEventListener("focusin", handleFocusIn);
+    }
+  }, []);
 
   return (
     // Provider gives every screen access to the Redux state.
@@ -40,6 +53,13 @@ export default function App() {
                 ...theme.colors,
                 ...navigationTheme[scheme === "dark" ? "dark" : "light"],
               },
+            }}
+            onStateChange={() => {
+              if (Platform.OS === "web" && typeof document !== "undefined") {
+                if (document.activeElement && document.activeElement !== document.body) {
+                  document.activeElement.blur?.();
+                }
+              }
             }}
           >
             {/* StatusBar is updated to match the active theme. */}

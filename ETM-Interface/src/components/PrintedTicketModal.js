@@ -95,7 +95,7 @@ export const PrintedTicketModal = ({
                 )}
               </View>
 
-              <Text style={styles.dashedLine}>-------------------------------------------------</Text>
+              <Text style={styles.dashedLine}>-------------------------------------------</Text>
 
               {/* Machine & Conductor Meta */}
               <View style={styles.metaRow}>
@@ -123,7 +123,7 @@ export const PrintedTicketModal = ({
                 <Text style={styles.monoVal}>{formattedTime}</Text>
               </View>
 
-              <Text style={styles.dashedLine}>=================================================</Text>
+              <Text style={styles.dashedLine}>==========================================</Text>
 
               {/* Journey Staging */}
               <View style={styles.journeySection}>
@@ -137,7 +137,7 @@ export const PrintedTicketModal = ({
                 </View>
               </View>
 
-              <Text style={styles.dashedLine}>-------------------------------------------------</Text>
+              <Text style={styles.dashedLine}>------------------------------------------</Text>
 
               {/* Passenger Category Breakdown */}
               <View style={styles.passengerSection}>
@@ -172,7 +172,7 @@ export const PrintedTicketModal = ({
                 </View>
               </View>
 
-              <Text style={styles.dashedLine}>=================================================</Text>
+              <Text style={styles.dashedLine}>=========================================</Text>
 
               {/* Fare Total */}
               <View style={styles.fareSection}>
@@ -203,7 +203,7 @@ export const PrintedTicketModal = ({
               </View>
 
               {/* Paper Bottom Jagged Cut */}
-              <Text style={styles.dashedLine}>- - - - - - - - - - - - - - - - - - - - - - - - -</Text>
+              <Text style={styles.dashedLine}>- - - - - - - - - - - - - - - - - - - - - -</Text>
             </View>
           </ScrollView>
 
