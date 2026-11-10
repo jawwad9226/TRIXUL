@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-11-08T12:56:32.430318+00:00",
-  "total": 23,
-  "passed": 23,
+  "timestamp": "2026-11-10T12:28:50.866114+00:00",
+  "total": 25,
+  "passed": 25,
   "failed": 0,
   "details": [
     {
@@ -11,8 +11,8 @@
         "passed": true,
         "status_code": 200,
         "data": {
-          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzk0MTQyODkyLCJpYXQiOjE3OTQxNDI1OTIsImp0aSI6Ijk2YTkyZDFmYTQ4YTRkMTVhODVlZDMzZDY4MDk4NmUzIiwiZW1wX2lkIjoiY29uZC0xMDAxIiwidXNlcl9pZCI6ImNvbmQtMTAwMSJ9.R7E4DtP9_EyBoNcXMtWtLLm_e9AlyXCB62FKTd3gT3g",
-          "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc5NDIyODk5MiwiaWF0IjoxNzk0MTQyNTkyLCJqdGkiOiJmYTg2MWMwOGIyNWU0Y2Q5YTUwODk1Mzc4ZDg2NTQ1MyIsImVtcF9pZCI6ImNvbmQtMTAwMSIsInVzZXJfaWQiOiJjb25kLTEwMDEifQ._rDf1KwUpD6hJuzlIKK7O_Zy6Bar9YLY2JFQFLHT4Ww",
+          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzk0MzE0MDMwLCJpYXQiOjE3OTQzMTM3MzAsImp0aSI6IjhmYjlhZDEyYTgyMTQyMmQ5ODk5NDUzMThjZDgyMDJmIiwiZW1wX2lkIjoiY29uZC0xMDAxIiwidXNlcl9pZCI6ImNvbmQtMTAwMSJ9.MkH6BwmqVqs-_-4V6M0ON41CArmgKwRQvgNu-mPW2P0",
+          "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc5NDQwMDEzMCwiaWF0IjoxNzk0MzEzNzMwLCJqdGkiOiIyOGU2OWE2NThiZDM0MzU4OTA0ZmJhMWEyZmVjNTFjOSIsImVtcF9pZCI6ImNvbmQtMTAwMSIsInVzZXJfaWQiOiJjb25kLTEwMDEifQ.EbYajCLeW2pYFEwJc8WLWPEWx2JMLqFAOTei7ewiMSk",
           "employee": {
             "id": "cond-1001",
             "emp_id": "cond-1001",
@@ -59,12 +59,12 @@
           "bus_id": "bus-101",
           "bus_number": "MH-30-AB-1234",
           "shift_status": "Active",
-          "current_stop": "Akola Bus Stand",
+          "current_stop": "Akola Central Bus Stand",
           "next_stop": "Shegaon",
           "eta_minutes": 56,
           "condition": "Moving",
           "speed": 45.5,
-          "passengers_count": 32,
+          "passengers_count": 62,
           "processed": true
         }
       }
@@ -75,7 +75,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "ticket_id": "TKT-102-252748"
+        "ticket_id": "TKT-102-272685"
       }
     },
     {
@@ -84,7 +84,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "ticket_id": "TKT-102-125325"
+        "ticket_id": "TKT-102-148012"
       }
     },
     {
@@ -102,8 +102,8 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "total_tickets": 25,
-        "total_revenue": 3699.25
+        "total_tickets": 45,
+        "total_revenue": 5974.25
       }
     },
     {
@@ -112,7 +112,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "incident_id": "INC-84410282"
+        "incident_id": "INC-32719792"
       }
     },
     {
@@ -139,10 +139,10 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "shift_id": "shift-337189",
+        "shift_id": "shift-263319",
         "error": {
           "status": "success",
-          "shift_id": "shift-337189",
+          "shift_id": "shift-263319",
           "conductor": "Amit Shirsat",
           "bus_number": "MH-30-BK-7777",
           "route": "Akola - Khamgaon Express",
@@ -156,7 +156,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "message": "Bus dynamically swapped from MH-30-BK-7777 to MH-12-XY-9876 for shift shift-337189."
+        "message": "Bus dynamically swapped from MH-30-BK-7777 to MH-12-XY-9876 for shift shift-263319."
       }
     },
     {
@@ -173,7 +173,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "shifts_count": 12
+        "shifts_count": 17
       }
     },
     {
@@ -182,9 +182,9 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "total_revenue": 7265.25,
-        "cash_amount": 5162.75,
-        "upi_amount": 2102.5
+        "total_revenue": 9540.25,
+        "cash_amount": 6012.75,
+        "upi_amount": 3527.5
       }
     },
     {
@@ -193,7 +193,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "incidents_count": 10
+        "incidents_count": 15
       }
     },
     {
@@ -229,7 +229,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "route_id": "route-test-4146"
+        "route_id": "route-test-79c7f89d"
       }
     },
     {
@@ -238,7 +238,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "routes_count": 13
+        "routes_count": 19
       }
     },
     {
@@ -248,6 +248,23 @@
         "passed": true,
         "status_code": 200,
         "discount_percentage": 10.0
+      }
+    },
+    {
+      "name": "Admin: Update Stop (PUT /api/v1/admin/stops/<id>/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "stop_name": "Akola Central Bus Stand"
+      }
+    },
+    {
+      "name": "Admin: Update & Delete Route (PUT & DELETE /api/v1/admin/routes/<id>/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200
       }
     }
   ]

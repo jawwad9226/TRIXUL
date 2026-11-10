@@ -16,6 +16,7 @@ import {
   Bus,
   User,
   Route as RouteIcon,
+  MapPin,
 } from 'lucide-react'
 import {
   fetchShifts,
@@ -279,54 +280,123 @@ export default function ShiftDispatcher() {
         )}
 
         {!loading && activeShifts.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {activeShifts.map((s) => (
               <div
                 key={s.shift_id}
-                className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
+                className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow-sm space-y-3"
               >
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-white">{s.shift_id}</span>
-                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      ACTIVE
-                    </span>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-white">{s.shift_id}</span>
+                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        ACTIVE
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
+                      <span className="flex items-center gap-1.5 text-white font-medium">
+                        <User className="w-3.5 h-3.5 text-trixul-accent" />
+                        <span>{s.conductor_name} ({s.conductor_id})</span>
+                      </span>
+                      <span className="flex items-center gap-1.5 text-blue-300 font-mono font-medium">
+                        <Bus className="w-3.5 h-3.5 text-blue-400" />
+                        <span>{s.bus_number}</span>
+                      </span>
+                      <span className="flex items-center gap-1.5 text-slate-400">
+                        <RouteIcon className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{s.route_name}</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
-                    <span className="flex items-center gap-1.5 text-white font-medium">
-                      <User className="w-3.5 h-3.5 text-trixul-accent" />
-                      <span>{s.conductor_name} ({s.conductor_id})</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 text-blue-300 font-mono font-medium">
-                      <Bus className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{s.bus_number}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 text-slate-400">
-                      <RouteIcon className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{s.route_name}</span>
-                    </span>
+
+                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                    {/* Mid-Shift Bus Swap Button */}
+                    <button
+                      onClick={() => openSwapModal(s)}
+                      className="flex items-center gap-1.5 text-xs bg-slate-700/80 hover:bg-slate-700 border border-slate-600 text-amber-300 px-3 py-1.5 rounded-lg transition"
+                      title="Swap bus mid-route for breakdown/emergency"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Swap Bus (Mid-Shift)</span>
+                    </button>
+
+                    {/* End Shift Button */}
+                    <button
+                      onClick={() => handleClose(s.shift_id)}
+                      className="text-xs bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 px-3.5 py-1.5 rounded-lg transition"
+                    >
+                      End Shift
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  {/* Mid-Shift Bus Swap Button */}
-                  <button
-                    onClick={() => openSwapModal(s)}
-                    className="flex items-center gap-1.5 text-xs bg-slate-700/80 hover:bg-slate-700 border border-slate-600 text-amber-300 px-3 py-1.5 rounded-lg transition"
-                    title="Swap bus mid-route for breakdown/emergency"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Swap Bus (Mid-Shift)</span>
-                  </button>
+                {/* Horizontal Route Progress Stepper with Stops */}
+                {s.stops && s.stops.length > 0 && (
+                  <div className="pt-3 border-t border-slate-700/60 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>
+                          Current Location Stop:{' '}
+                          <strong className="text-white">
+                            {s.current_stop_name || s.stops[0]?.stop_name}
+                          </strong>
+                        </span>
+                      </span>
+                      <span className="text-slate-400 font-mono text-[10px]">
+                        Stop {(s.current_stop_index ?? 0) + 1} of {s.total_stops} •{' '}
+                        <strong className="text-emerald-400">{s.progress_percent ?? 0}%</strong> Route Progress
+                      </span>
+                    </div>
 
-                  {/* End Shift Button */}
-                  <button
-                    onClick={() => handleClose(s.shift_id)}
-                    className="text-xs bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 px-3.5 py-1.5 rounded-lg transition"
-                  >
-                    End Shift
-                  </button>
-                </div>
+                    {/* Stepper Track */}
+                    <div className="relative pt-2 pb-2 px-2 overflow-x-auto">
+                      <div className="relative flex items-center justify-between min-w-[340px]">
+                        {/* Connecting track line */}
+                        <div className="absolute top-2 left-3 right-3 h-1 bg-slate-700 -translate-y-1/2 z-0" />
+                        <div
+                          className="absolute top-2 left-3 h-1 bg-emerald-500 -translate-y-1/2 z-0 transition-all duration-500"
+                          style={{ width: `${s.progress_percent ?? 0}%` }}
+                        />
+
+                        {/* Stop dots */}
+                        {s.stops.map((st, idx) => {
+                          const isPassed = idx < (s.current_stop_index ?? 0)
+                          const isCurrent = idx === (s.current_stop_index ?? 0)
+                          return (
+                            <div key={st.stop_id} className="relative z-10 flex flex-col items-center">
+                              <div
+                                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${
+                                  isCurrent
+                                    ? 'bg-blue-400 ring-4 ring-blue-500/40 scale-125'
+                                    : isPassed
+                                    ? 'bg-emerald-500'
+                                    : 'bg-slate-700 border-2 border-slate-600'
+                                }`}
+                              >
+                                {isPassed && <span className="text-[7px] text-white font-bold">✓</span>}
+                                {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                              <span
+                                className={`text-[9px] mt-1.5 max-w-[75px] text-center truncate ${
+                                  isCurrent
+                                    ? 'font-bold text-white'
+                                    : isPassed
+                                    ? 'text-slate-300'
+                                    : 'text-slate-500'
+                                }`}
+                                title={`${st.stop_name} (${st.distance_km} km)`}
+                              >
+                                {st.stop_name}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

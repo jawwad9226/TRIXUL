@@ -5,7 +5,7 @@ from .views import (
     CustomTokenRefreshView,
     AdminFleetView, AdminShiftView, AdminShiftCloseView, AdminRevenueView, AdminIncidentView,
     AdminDispatchOptionsView, AdminIncidentAcknowledgeView, AdminShiftReassignBusView,
-    AdminRouteListView, AdminRouteCreateView, AdminStopListView,
+    AdminRouteListView, AdminRouteCreateView, AdminRouteDetailView, AdminStopListView, AdminStopDetailView,
     BatchTicketSyncView, ShiftTicketSummaryView, AdminFareControlView,
 )
 
@@ -35,5 +35,7 @@ urlpatterns = [
     # ── Route & Stop Master Data Management ────────────────────────────────────
     path('api/v1/admin/routes/', AdminRouteListView.as_view(), name='admin_routes_list'),
     path('api/v1/admin/routes/create/', AdminRouteCreateView.as_view(), name='admin_routes_create'),
+    path('api/v1/admin/routes/<str:route_id>/', AdminRouteDetailView.as_view(), name='admin_route_detail'),
     path('api/v1/admin/stops/', AdminStopListView.as_view(), name='admin_stops_list'),
+    path('api/v1/admin/stops/<str:stop_id>/', AdminStopDetailView.as_view(), name='admin_stop_detail'),
 ]

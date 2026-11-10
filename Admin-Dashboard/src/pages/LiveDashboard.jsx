@@ -15,6 +15,9 @@ import {
   Bus,
   Tag,
   Percent,
+  User,
+  Activity,
+  ClipboardList,
 } from 'lucide-react'
 import {
   BarChart,
@@ -26,7 +29,6 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts'
-import FleetMap from '../components/fleet/FleetMap'
 import { useFleetData } from '../hooks/useFleetData'
 import { createShift, fetchDispatchOptions, fetchFareControls, updateFareControl } from '../api/admin'
 
@@ -126,9 +128,10 @@ export default function LiveDashboard() {
     }
   }
 
-  // Pure Live Route Occupancy data from PostgreSQL
+  // Pure Live Route Occupancy data from PostgreSQL — display route number on axis, full details on hover
   const chartData = occupancyAnalytics.map((item) => ({
-    name: item.route_name.split('(')[0].trim(),
+    name: (item.route_id || '').toUpperCase(),
+    routeId: (item.route_id || '').toUpperCase(),
     fullName: item.route_name,
     passengers: item.passengers,
     seatedLimit: 45,
@@ -139,32 +142,110 @@ export default function LiveDashboard() {
   return (
     <div className="space-y-6">
       
-      {/* ── Top Row: Mini Fleet Radar & AI Demand Surge Alerts ─────────────── */}
+      {/* ── Top Row: Active Shifts Roster & AI Demand Surge Alerts ─────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[440px]">
         
-        {/* Mini Fleet Radar (Leaflet + CartoDB Dark Matter) */}
+        {/* Active Shifts Roster (Running Fleet) */}
         <div className="lg:col-span-2 bg-trixul-panel rounded-xl border border-slate-700 shadow-xl flex flex-col overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-700 flex justify-between items-center bg-slate-800/60">
             <h3 className="font-semibold text-white text-sm flex items-center gap-2">
-              <Satellite className="w-4 h-4 text-trixul-accent" />
-              <span>Mini Fleet Radar (Active Telemetry)</span>
+              <ClipboardList className="w-4 h-4 text-trixul-accent" />
+              <span>Active Shifts (Running Fleet)</span>
             </h3>
             <div className="flex items-center gap-3">
               <span className="text-xs bg-trixul-success/20 text-trixul-success px-2.5 py-0.5 rounded-full border border-trixul-success/30 flex items-center gap-1.5 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-trixul-success animate-ping"></span>
-                <span>{fleet.length} Active</span>
+                <span>{fleet.length} Deployed</span>
               </span>
               <button
                 onClick={refresh}
-                title="Refresh radar"
+                title="Refresh shifts"
                 className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
-          <div className="flex-1 p-2 relative bg-trixul-dark">
-            <FleetMap fleet={fleet} />
+          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-900/40">
+            {fleet.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-400">
+                <Bus className="w-10 h-10 text-slate-600 mb-2" />
+                <p className="text-xs font-semibold text-slate-300">No active shifts currently running</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Deploy a bus assignment from the Shift Dispatcher to start operational telemetry.
+                </p>
+              </div>
+            ) : (
+              fleet.map((s) => {
+                const paxToday = s.live_stats?.passengers_today || 0
+                const capacity = s.capacity_total || 56
+                const seatedCap = s.seated_capacity || 45
+                const paxPercent = Math.min(100, Math.round((paxToday / capacity) * 100))
+                const isOverCap = paxToday >= seatedCap
+
+                return (
+                  <div
+                    key={s.shift_id}
+                    className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 rounded-xl p-3.5 shadow-sm transition space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-white bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700">
+                          {s.shift_id}
+                        </span>
+                        <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          <span>LIVE</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono font-bold text-emerald-400">
+                          ₹{(s.live_stats?.revenue_today || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                        {s.last_seen?.speed !== undefined && (
+                          <span className="text-[10px] bg-slate-900 text-slate-300 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1 font-mono">
+                            <Activity className="w-3 h-3 text-trixul-accent" />
+                            <span>{s.last_seen.speed} km/h</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-blue-300 font-mono">
+                        <Bus className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                        <span className="truncate">{s.bus_number}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <User className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                        <span className="truncate">{s.conductor_name}</span>
+                      </div>
+                      <div className="text-slate-400 truncate sm:text-right font-medium">
+                        {s.route_name}
+                      </div>
+                    </div>
+
+                    {/* Mini Occupancy Bar */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Passenger Load</span>
+                        <span className={`font-mono font-bold ${isOverCap ? 'text-red-400' : 'text-slate-300'}`}>
+                          {paxToday} / {capacity} ({paxPercent}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isOverCap ? 'bg-red-500' : paxPercent > 70 ? 'bg-amber-400' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${paxPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
 
@@ -310,9 +391,13 @@ export default function LiveDashboard() {
                   color: '#f8fafc',
                   fontSize: '12px',
                 }}
+                labelFormatter={(label, payload) => {
+                  const item = payload?.[0]?.payload
+                  return item ? `${item.routeId}: ${item.fullName}` : label
+                }}
                 formatter={(val, name, props) => [
                   `${val} Passengers`,
-                  props.payload.isSurge ? 'Critical Surge' : 'Within Limit',
+                  props.payload.isSurge ? 'Critical Surge (≥45 Seated Limit)' : 'Normal Capacity (<45)',
                 ]}
               />
               {/* Red dashed reference line at 45 (Seated Limit) */}

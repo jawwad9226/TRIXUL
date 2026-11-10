@@ -333,7 +333,7 @@ results.append(("Admin: List Stops (GET /api/v1/admin/stops/)", *run_test("Regis
 
 def test_create_route():
     import uuid
-    route_id = f"route-test-{str(uuid.uuid4().int)[:4]}"
+    route_id = f"route-test-{uuid.uuid4().hex[:8]}"
     payload = {
         "route_id": route_id,
         "route_name": "Akola - Malkapur Test Express",
@@ -375,6 +375,49 @@ def test_fare_controls():
     }
 
 results.append(("Admin: Dynamic Fare Controls (GET & POST /api/v1/admin/fare-controls/)", *run_test("Dynamic Fare Control & 10% Discount Push", test_fare_controls)))
+
+def test_stop_update():
+    resp = client.put("/api/v1/admin/stops/STP-AKL/", {
+        "stop_name": "Akola Central Bus Stand",
+        "latitude": 20.7005,
+        "longitude": 77.0025,
+    }, format="json")
+    passed = resp.status_code == 200 and resp.data.get("status") == "success"
+    return {"passed": passed, "status_code": resp.status_code, "stop_name": resp.data.get("stop_name")}
+
+results.append(("Admin: Update Stop (PUT /api/v1/admin/stops/<id>/)", *run_test("Update Existing Stop Details", test_stop_update)))
+
+def test_route_update_and_delete():
+    import uuid
+    tmp_route_id = f"route-temp-{uuid.uuid4().hex[:6]}"
+    # Create temp route
+    create_resp = client.post("/api/v1/admin/routes/create/", {
+        "route_id": tmp_route_id,
+        "route_name": "Temporary Express",
+        "base_fare": "10.00",
+        "per_km_rate": "1.50",
+        "stops": [
+            {"stop_id": "STP-AKL", "stop_name": "Akola Bus Stand", "sequence": 1, "distance_km": 0.0, "latitude": 20.7002, "longitude": 77.0022},
+            {"stop_id": "STP-SHG", "stop_name": "Shegaon Bus Stand", "sequence": 2, "distance_km": 42.5, "latitude": 20.7932, "longitude": 76.6908},
+        ]
+    }, format="json")
+    if create_resp.status_code != 201:
+        return {"passed": False, "status_code": create_resp.status_code}
+
+    # Update temp route
+    update_resp = client.put(f"/api/v1/admin/routes/{tmp_route_id}/", {
+        "route_name": "Temporary Express Updated",
+        "base_fare": "15.00",
+    }, format="json")
+    update_passed = update_resp.status_code == 200 and update_resp.data.get("status") == "success"
+
+    # Delete temp route
+    delete_resp = client.delete(f"/api/v1/admin/routes/{tmp_route_id}/")
+    delete_passed = delete_resp.status_code == 200 and delete_resp.data.get("status") == "success"
+
+    return {"passed": update_passed and delete_passed, "status_code": delete_resp.status_code}
+
+results.append(("Admin: Update & Delete Route (PUT & DELETE /api/v1/admin/routes/<id>/)", *run_test("Route Modification & Deletion", test_route_update_and_delete)))
 
 # Maintain initial active shifts so demo/radar state is preserved
 from core.models import Shift

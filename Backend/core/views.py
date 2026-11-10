@@ -238,6 +238,25 @@ class AdminRouteCreateView(APIView):
         return Response(result, status=status.HTTP_201_CREATED)
 
 
+class AdminRouteDetailView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def put(self, request, route_id):
+        """PUT /api/v1/admin/routes/<route_id>/ — Update route details, stops, and fare rules"""
+        result = AdminRouteManagementService.update_route(route_id, request.data)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+    def delete(self, request, route_id):
+        """DELETE /api/v1/admin/routes/<route_id>/ — Delete route if no active shift operates on it"""
+        result = AdminRouteManagementService.delete_route(route_id)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+
 class AdminStopListView(APIView):
     authentication_classes = []
     permission_classes = []
@@ -260,6 +279,20 @@ class AdminStopListView(APIView):
         if result.get("status") == "error":
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+class AdminStopDetailView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def put(self, request, stop_id):
+        """PUT /api/v1/admin/stops/<stop_id>/ — Update stop name or coordinates"""
+        data = request.data.copy()
+        data['stop_id'] = stop_id
+        result = AdminRouteManagementService.create_stop(data)
+        if result.get("status") == "error":
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class AdminFareControlView(APIView):
