@@ -1,0 +1,54 @@
+
+        /* Navigation Buttons */
+        .device-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 2rem 1.5rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .device-nav.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .nav-btn {
+            background: linear-gradient(135deg, var(--surface) 0%, var(--surface-light) 100%);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 1.25rem 1.5rem;
+            border-radius: 12px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-btn:hover {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--surface-light) 0%, var(--surface) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-btn.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary-glow) 0%, var(--surface-light) 100%);
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        .nav-btn i {
+            font-size: 1.25rem;
+        }

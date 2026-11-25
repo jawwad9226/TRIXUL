@@ -13,6 +13,7 @@ const keys = {
   updates: "@trixual/updates",
   legacyMockData: "@trixual/mock-data",
   apiBaseUrl: "@trixual/api-base-url",
+  offlineQueue: "@trixual/offline-tickets",
 };
 
 async function saveValue(key, value) {
@@ -36,6 +37,23 @@ async function clearKey(key) {
 }
 
 export const storage = {
+  async saveTicketHistory(tickets) {
+    await saveValue(keys.ticketHistory, tickets);
+  },
+
+  async enqueueOfflineTicket(ticket) {
+    const queue = await loadValue(keys.offlineQueue, []);
+    await saveValue(keys.offlineQueue, [...queue, ticket]);
+  },
+
+  async loadOfflineTickets() {
+    return loadValue(keys.offlineQueue, []);
+  },
+
+  async clearOfflineTickets() {
+    await clearKey(keys.offlineQueue);
+  },
+
   async appendTicket(ticket) {
     const current = await loadValue(keys.ticketHistory, []);
     await saveValue(keys.ticketHistory, [ticket, ...current]);

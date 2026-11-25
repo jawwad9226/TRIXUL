@@ -19,6 +19,9 @@ const updateSlice = createSlice({
   name: "updates",
   initialState,
   reducers: {
+    setUpdates(state, action) {
+      state.items = action.payload;
+    },
     markUpdateComplete(state, action) {
       const item = state.items.find((update) => update.id === action.payload);
       if (item) {
@@ -43,5 +46,5 @@ const updateSlice = createSlice({
   },
 });
 
-export const { markUpdateComplete } = updateSlice.actions;
+export const { setUpdates, markUpdateComplete } = updateSlice.actions;
 export default updateSlice.reducer;

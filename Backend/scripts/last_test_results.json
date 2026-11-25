@@ -1,0 +1,254 @@
+{
+  "timestamp": "2026-11-08T12:56:32.430318+00:00",
+  "total": 23,
+  "passed": 23,
+  "failed": 0,
+  "details": [
+    {
+      "name": "ETM: Conductor Login (POST /api/v1/auth/login/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "data": {
+          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzk0MTQyODkyLCJpYXQiOjE3OTQxNDI1OTIsImp0aSI6Ijk2YTkyZDFmYTQ4YTRkMTVhODVlZDMzZDY4MDk4NmUzIiwiZW1wX2lkIjoiY29uZC0xMDAxIiwidXNlcl9pZCI6ImNvbmQtMTAwMSJ9.R7E4DtP9_EyBoNcXMtWtLLm_e9AlyXCB62FKTd3gT3g",
+          "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc5NDIyODk5MiwiaWF0IjoxNzk0MTQyNTkyLCJqdGkiOiJmYTg2MWMwOGIyNWU0Y2Q5YTUwODk1Mzc4ZDg2NTQ1MyIsImVtcF9pZCI6ImNvbmQtMTAwMSIsInVzZXJfaWQiOiJjb25kLTEwMDEifQ._rDf1KwUpD6hJuzlIKK7O_Zy6Bar9YLY2JFQFLHT4Ww",
+          "employee": {
+            "id": "cond-1001",
+            "emp_id": "cond-1001",
+            "name": "Suresh Patil",
+            "role": "Conductor"
+          },
+          "shift": {
+            "shift_id": "shift-001",
+            "bus_id": "bus-101",
+            "bus_number": "MH-30-AB-1234",
+            "route_id": "route-102",
+            "route_name": "Akola - Pune (Via Bhusawal)"
+          }
+        }
+      }
+    },
+    {
+      "name": "ETM: Token Refresh (POST /api/v1/auth/refresh/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200
+      }
+    },
+    {
+      "name": "ETM: Route Init (GET /api/v1/routes/route-102/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "stops_count": 7,
+        "fares_count": 21
+      }
+    },
+    {
+      "name": "ETM: Telemetry Heartbeat (POST /api/v1/telemetry/heartbeat/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "data": {
+          "status": "success",
+          "shift_id": "shift-001",
+          "bus_id": "bus-101",
+          "bus_number": "MH-30-AB-1234",
+          "shift_status": "Active",
+          "current_stop": "Akola Bus Stand",
+          "next_stop": "Shegaon",
+          "eta_minutes": 56,
+          "condition": "Moving",
+          "speed": 45.5,
+          "passengers_count": 32,
+          "processed": true
+        }
+      }
+    },
+    {
+      "name": "ETM: Issue Ticket Cash (POST /api/v1/ticketing/issue/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "ticket_id": "TKT-102-252748"
+      }
+    },
+    {
+      "name": "ETM: Issue Ticket UPI (POST /api/v1/ticketing/issue/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "ticket_id": "TKT-102-125325"
+      }
+    },
+    {
+      "name": "ETM: Batch Ingestion API (POST /api/v1/sync/batch/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "synced_count": 2
+      }
+    },
+    {
+      "name": "ETM: Live Shift Summary (GET /api/v1/ticketing/shift/shift-001/summary/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "total_tickets": 25,
+        "total_revenue": 3699.25
+      }
+    },
+    {
+      "name": "ETM: Conductor SOS Report (POST /api/v1/admin/incidents/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "incident_id": "INC-84410282"
+      }
+    },
+    {
+      "name": "Admin: Live Fleet Telemetry (GET /api/v1/admin/fleet/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "fleet_count": 3,
+        "ai_alerts_count": 2
+      }
+    },
+    {
+      "name": "Admin: Dispatch Options (GET /api/v1/admin/dispatch-options/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200
+      }
+    },
+    {
+      "name": "Admin: Create Shift (POST /api/v1/admin/shifts/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "shift_id": "shift-337189",
+        "error": {
+          "status": "success",
+          "shift_id": "shift-337189",
+          "conductor": "Amit Shirsat",
+          "bus_number": "MH-30-BK-7777",
+          "route": "Akola - Khamgaon Express",
+          "message": "Shift created. ETM will pick it up on next sync."
+        }
+      }
+    },
+    {
+      "name": "Admin: Mid-Shift Bus Swap (POST /api/v1/admin/shifts/<id>/reassign-bus/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "message": "Bus dynamically swapped from MH-30-BK-7777 to MH-12-XY-9876 for shift shift-337189."
+      }
+    },
+    {
+      "name": "Admin: Close Shift (POST /api/v1/admin/shifts/<id>/close/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200
+      }
+    },
+    {
+      "name": "Admin: List Shifts (GET /api/v1/admin/shifts/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "shifts_count": 12
+      }
+    },
+    {
+      "name": "Admin: Revenue Breakdown (GET /api/v1/admin/revenue/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "total_revenue": 7265.25,
+        "cash_amount": 5162.75,
+        "upi_amount": 2102.5
+      }
+    },
+    {
+      "name": "Admin: List Incidents (GET /api/v1/admin/incidents/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "incidents_count": 10
+      }
+    },
+    {
+      "name": "Admin: Acknowledge Incident (PATCH /api/v1/admin/incidents/<id>/acknowledge/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "incident_status": "ACKNOWLEDGED"
+      }
+    },
+    {
+      "name": "Admin: Create Stop (POST /api/v1/admin/stops/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "stop_id": "STP-MLK-TEST"
+      }
+    },
+    {
+      "name": "Admin: List Stops (GET /api/v1/admin/stops/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "stops_count": 13
+      }
+    },
+    {
+      "name": "Admin: Deploy Route (POST /api/v1/admin/routes/create/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 201,
+        "route_id": "route-test-4146"
+      }
+    },
+    {
+      "name": "Admin: List Routes (GET /api/v1/admin/routes/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "routes_count": 13
+      }
+    },
+    {
+      "name": "Admin: Dynamic Fare Controls (GET & POST /api/v1/admin/fare-controls/)",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "status_code": 200,
+        "discount_percentage": 10.0
+      }
+    }
+  ]
+}

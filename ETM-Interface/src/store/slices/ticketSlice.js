@@ -52,12 +52,26 @@ export const submitBooking = createAsyncThunk(
       destinationStop,
       passengerCounts,
     );
+
+    const bStop = route?.stops?.find(
+      (s) => (s.id || s.stop_id) === boardingStop || s.name === boardingStop
+    );
+    const dStop = route?.stops?.find(
+      (s) => (s.id || s.stop_id) === destinationStop || s.name === destinationStop
+    );
+
     const ticket = {
       ticketId: nanoid(),
       passengerCounts,
+<<<<<<< HEAD
       routeId: route.id,
       boardingStop,
       destinationStop,
+=======
+      routeId: route?.route_id || "unknown_route",
+      boardingStop: bStop?.name || boardingStop,
+      destinationStop: dStop?.name || destinationStop,
+>>>>>>> origin/main
       fare: fare.finalAmount,
       paymentMode,
       timestamp: new Date().toISOString(),

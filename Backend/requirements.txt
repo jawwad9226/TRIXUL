@@ -30,4 +30,8 @@ redis>=5.0.0
 python-dotenv>=1.0.0
 
 # WSGI Server for production
+<<<<<<< HEAD
 gunicorn>=21.2.0
+=======
+gunicorn>=21.2.0
+>>>>>>> origin/main

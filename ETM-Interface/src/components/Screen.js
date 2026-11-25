@@ -1,22 +1,71 @@
 // File: src/components/Screen.js
-// Purpose: Standard page wrapper for safe-area and background behavior.
-// Imports: theme colors and spacing.
-// Behavior: Screens that use this wrapper inherit the same layout shell.
+// Purpose: Standard page wrapper for safe-area, background, and uniform back-navigation.
+// Imports: theme colors, spacing, and navigation hooks.
 import React from "react";
 import {
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   View,
   useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { colors, spacing } from "../constants/theme";
+import { colors, radii, spacing } from "../constants/theme";
 
-export const Screen = ({ children, scroll = true }) => {
+export const Screen = ({
+  children,
+  scroll = true,
+  showBack = false,
+  backTitle = "Back to Dashboard",
+  onBack,
+}) => {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
-  const content = <View style={styles.container}>{children}</View>;
+  const navigation = useNavigation();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (navigation?.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Dashboard");
+    }
+  };
+
+  const content = (
+    <View style={styles.container}>
+      {showBack && (
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [
+            styles.backButton,
+            {
+              backgroundColor: pressed
+                ? colors[scheme].surfaceAlt
+                : colors[scheme].surface,
+              borderColor: colors[scheme].border,
+            },
+          ]}
+          hitSlop={10}
+        >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color={colors[scheme].text}
+          />
+          <Text style={[styles.backText, { color: colors[scheme].text }]}>
+            {backTitle}
+          </Text>
+        </Pressable>
+      )}
+      {children}
+    </View>
+  );
 
   return (
     <SafeAreaView
@@ -47,5 +96,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  backText: {
+    marginLeft: spacing.xs,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

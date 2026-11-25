@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // File: src/store/slices/busSlice.js
 // Purpose: Tracks live bus status, active buses, and location feed state.
 // Imports: mock API and bus telemetry services.
@@ -10,6 +11,9 @@ import {
   fetchLiveBusStatus,
   reportBusLocation,
 } from "../../services/busTelemetry";
+=======
+import { createSlice } from "@reduxjs/toolkit";
+>>>>>>> origin/main
 
 const initialState = {
   status: null,
@@ -48,6 +52,7 @@ export const submitBusLocation = createAsyncThunk(
 const busSlice = createSlice({
   name: "bus",
   initialState,
+<<<<<<< HEAD
   reducers: {},
   extraReducers: (builder) => {
     builder
@@ -119,4 +124,23 @@ const busSlice = createSlice({
       });
   },
 });
+=======
+  reducers: {
+    setBusStatus(state, action) {
+      state.status = action.payload;
+    },
+    setBusLoading(state, action) {
+      state.loading = action.payload;
+    },
+    setBusError(state, action) {
+      state.error = action.payload;
+    },
+    setActiveBuses(state, action) {
+      state.activeBuses = action.payload;
+    },
+  },
+});
+
+export const { setBusStatus, setBusLoading, setBusError, setActiveBuses } = busSlice.actions;
+>>>>>>> origin/main
 export default busSlice.reducer;

@@ -19,10 +19,11 @@ function getLocalIp() {
 const localIp = getLocalIp();
 const envPath = path.join(__dirname, "..", ".env");
 const envContent = [
-  `EXPO_PUBLIC_API_BASE_URL=http://${localIp}:3000`,
+  `EXPO_PUBLIC_API_URL=http://${localIp}:8000`,
+  `EXPO_PUBLIC_API_BASE_URL=http://${localIp}:8000`,
   `EXPO_PUBLIC_LOCAL_IP=${localIp}`,
   "",
 ].join("\n");
 
 fs.writeFileSync(envPath, envContent, "utf8");
-console.log(`Updated ${envPath} with ${localIp}`);
+console.log(`Updated ${envPath} with http://${localIp}:8000`);

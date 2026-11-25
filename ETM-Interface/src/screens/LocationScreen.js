@@ -11,8 +11,14 @@ import { ProgressBar } from "../components/ProgressBar";
 import { Screen } from "../components/Screen";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+<<<<<<< HEAD
 import { submitBusLocation } from "../store/slices/busSlice";
 import { setGps } from "../store/slices/routeSlice";
+=======
+import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
+import { updateBusAssignment } from "../store/slices/conductorSlice";
+import { sendHeartbeat } from "../services/api";
+>>>>>>> origin/main
 
 export const LocationScreen = () => {
   const dispatch = useAppDispatch();
@@ -78,6 +84,23 @@ export const LocationScreen = () => {
           }),
         ).unwrap();
         if (active) {
+<<<<<<< HEAD
+=======
+          if (result?.bus_number && result.bus_number !== profile?.busNumber) {
+            dispatch(updateBusAssignment({
+              busNumber: result.bus_number,
+              busId: result.bus_id,
+            }));
+          }
+          dispatch(setBusStatus({
+            current_stop: result.current_stop,
+            next_stop: result.next_stop,
+            eta_minutes: result.eta_minutes,
+            condition: result.condition,
+            speed: payload.speed,
+          }));
+          setSyncStatus("synced");
+>>>>>>> origin/main
           setPermissionMessage(null);
         }
       } catch (error) {

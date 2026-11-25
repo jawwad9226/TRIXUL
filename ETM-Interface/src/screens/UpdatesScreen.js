@@ -1,29 +1,72 @@
+<<<<<<< HEAD
 // File: src/screens/UpdatesScreen.js
 // Purpose: Shows announcements and lets staff mark tasks complete.
 // Imports: updates state and update actions.
 // Behavior: Refreshing the slice changes what items appear in the feed.
 import React, { useEffect } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+=======
+import React, { useEffect, useState, useCallback } from "react";
+import { FlatList, StyleSheet, Text, View, Pressable } from "react-native";
+>>>>>>> origin/main
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+<<<<<<< HEAD
 import {
   markUpdateComplete,
   refreshUpdates,
 } from "../store/slices/updateSlice";
+=======
+import { setUpdates, markUpdateComplete } from "../store/slices/updateSlice";
+import { fetchActiveIncidents } from "../services/api";
+import { storage } from "../services/storage";
+>>>>>>> origin/main
 import { timeLabel } from "../utils/format";
 
 export const UpdatesScreen = () => {
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.updates.items);
+  const [loading, setLoading] = useState(false);
+
+  const loadIncidents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchActiveIncidents();
+      const rawIncidents = Array.isArray(data) ? data : [];
+      const mapped = rawIncidents.map((inc) => ({
+        id: inc.incident_id,
+        title: `[${inc.severity}] Bus ${inc.bus_number || "Grid Alert"} • ${inc.route_name || "Operational Sector"}`,
+        body: inc.message,
+        priority: inc.severity === "SOS" ? "High" : inc.severity === "WARNING" ? "Medium" : "Low",
+        category: inc.status === "OPEN" ? "Active Dispatch" : "Acknowledged Log",
+        timestamp: inc.timestamp,
+        unread: inc.status === "OPEN",
+        completed: inc.status !== "OPEN",
+      }));
+      dispatch(setUpdates(mapped));
+      await storage.saveUpdates(mapped);
+    } catch (err) {
+      // Keep cached updates
+    } finally {
+      setLoading(false);
+    }
+  }, [dispatch]);
+
+  useEffect(() => {
+    loadIncidents();
+    const interval = setInterval(loadIncidents, 15000);
+    return () => clearInterval(interval);
+  }, [loadIncidents]);
+
 
   useEffect(() => {
     dispatch(refreshUpdates());
   }, [dispatch]);
   return (
-    <Screen scroll={false}>
+    <Screen showBack backTitle="Dashboard" scroll={false}>
       <Text style={styles.title}>Updates</Text>
       <Text style={styles.subtitle}>
         Announcements, route changes, admin replies and conductor tasks with
