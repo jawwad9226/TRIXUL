@@ -3,7 +3,6 @@
 // Imports: bootstrap actions, animation, and theme constants.
 // Behavior: On success it resets navigation to Dashboard; on timeout it falls back to cache.
 import React, { useEffect, useState } from "react";
-<<<<<<< HEAD
 import {
   ActivityIndicator,
   StyleSheet,
@@ -68,60 +67,6 @@ export const SplashScreen = ({ navigation }) => {
       navigation.reset({ index: 0, routes: [{ name: "Dashboard" }] });
     }
   }, [conductor, navigation, ready, route]);
-=======
-import { StyleSheet, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-
-import { BusAnimation } from "../components/BusAnimation";
-import { radii, spacing } from "../constants/theme";
-import { useAppDispatch } from "../store/hooks";
-import { storage } from "../services/storage";
-import { setProfile } from "../store/slices/conductorSlice";
-import { setRoute } from "../store/slices/routeSlice";
-
-export const SplashScreen = ({ navigation }) => {
-  const dispatch = useAppDispatch();
-  const [loadingText, setLoadingText] = useState("Checking local cache...");
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadData = async () => {
-      try {
-        const cachedConductor = await storage.loadConductorData(null);
-        const cachedRoute = await storage.loadRouteData(null);
-
-        // Add a slight artificial delay for the animation to play
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        if (!mounted) return;
-
-        if (cachedConductor && cachedRoute) {
-          setLoadingText("Restoring session...");
-          dispatch(setProfile(cachedConductor));
-          dispatch(setRoute(cachedRoute));
-          
-          navigation.reset({ index: 0, routes: [{ name: "Dashboard" }] });
-        } else {
-          setLoadingText("No active session found.");
-          navigation.reset({ index: 0, routes: [{ name: "Initializer" }] });
-        }
-      } catch (e) {
-        if (!mounted) return;
-        setLoadingText("Failed to read local cache.");
-        setTimeout(() => {
-          navigation.reset({ index: 0, routes: [{ name: "Initializer" }] });
-        }, 1500);
-      }
-    };
-
-    loadData();
-
-    return () => {
-      mounted = false;
-    };
-  }, [dispatch, navigation]);
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
   return (
     <LinearGradient
@@ -135,7 +80,6 @@ export const SplashScreen = ({ navigation }) => {
           Electronic Ticket Machine for smart public transport operations
         </Text>
         <View style={styles.loadingRow}>
-<<<<<<< HEAD
           <ActivityIndicator color={colors.light.primary} />
           <Text style={styles.loadingText}>
             {timedOut
@@ -158,11 +102,6 @@ export const SplashScreen = ({ navigation }) => {
               </Text>
             </Pressable>
           ) : null}
-=======
-          <Text style={styles.loadingText}>
-            {loadingText}
-          </Text>
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
         </View>
       </View>
     </LinearGradient>

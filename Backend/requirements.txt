@@ -28,3 +28,6 @@ redis>=5.0.0
 
 # Load .env files into Django settings (required for secure config)
 python-dotenv>=1.0.0
+
+# WSGI Server for production
+gunicorn>=21.2.0

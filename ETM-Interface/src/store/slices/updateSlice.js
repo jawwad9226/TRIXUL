@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // File: src/store/slices/updateSlice.js
 // Purpose: Stores announcements and update completion state.
 // Imports: mock API.
@@ -6,9 +5,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { mockApi } from "../../services/mockApi";
-=======
-import { createSlice } from "@reduxjs/toolkit";
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
 const initialState = {
   items: [],
@@ -16,13 +12,9 @@ const initialState = {
   error: null,
 };
 
-<<<<<<< HEAD
 export const refreshUpdates = createAsyncThunk("updates/refresh", async () =>
   mockApi.fetchUpdates(),
 );
-
-=======
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 const updateSlice = createSlice({
   name: "updates",
   initialState,
@@ -34,7 +26,6 @@ const updateSlice = createSlice({
         item.unread = false;
       }
     },
-<<<<<<< HEAD
   },
   extraReducers: (builder) => {
     builder
@@ -50,9 +41,6 @@ const updateSlice = createSlice({
         state.error = action.error.message ?? "Unable to load updates";
       });
   },
-=======
-  }
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 });
 
 export const { markUpdateComplete } = updateSlice.actions;

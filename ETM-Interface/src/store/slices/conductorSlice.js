@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // File: src/store/slices/conductorSlice.js
 // Purpose: Stores conductor profile and sync state.
 // Imports: mock API for bootstrap loading.
@@ -9,27 +8,16 @@ import { mockApi } from "../../services/mockApi";
 
 const initialState = {
   profile: null,
-=======
-import { createSlice } from "@reduxjs/toolkit";
-
-
-const initialState = {
-  profile: null, // { emp_id, name, role }
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   loading: false,
   error: null,
 };
 
-<<<<<<< HEAD
 export const bootstrapConductor = createAsyncThunk(
   "conductor/bootstrap",
   async (options = {}) => {
     return mockApi.fetchConductorProfile(options);
   },
 );
-
-=======
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 const conductorSlice = createSlice({
   name: "conductor",
   initialState,
@@ -43,7 +31,6 @@ const conductorSlice = createSlice({
       }
     },
   },
-<<<<<<< HEAD
   extraReducers: (builder) => {
     builder
       .addCase(bootstrapConductor.pending, (state) => {
@@ -60,8 +47,6 @@ const conductorSlice = createSlice({
           action.error.message ?? "Unable to load conductor profile";
       });
   },
-=======
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 });
 
 export const { setProfile, setSyncStatus } = conductorSlice.actions;

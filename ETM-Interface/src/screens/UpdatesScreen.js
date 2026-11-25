@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // File: src/screens/UpdatesScreen.js
 // Purpose: Shows announcements and lets staff mark tasks complete.
 // Imports: updates state and update actions.
@@ -6,47 +5,27 @@
 import React, { useEffect } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-=======
-import React from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-import { EmptyState } from "../components/EmptyState";
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-<<<<<<< HEAD
 import {
   markUpdateComplete,
   refreshUpdates,
 } from "../store/slices/updateSlice";
-=======
-import { markUpdateComplete } from "../store/slices/updateSlice";
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 import { timeLabel } from "../utils/format";
 
 export const UpdatesScreen = () => {
   const dispatch = useAppDispatch();
-<<<<<<< HEAD
   const items = useAppSelector((state) => state.updates.items);
 
   useEffect(() => {
     dispatch(refreshUpdates());
   }, [dispatch]);
-
-=======
-  // Updates are stored in Redux (populated from backend when available)
-  const items = useAppSelector((state) => state.updates.items);
-
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
   return (
     <Screen scroll={false}>
       <Text style={styles.title}>Updates</Text>
       <Text style={styles.subtitle}>
-<<<<<<< HEAD
         Announcements, route changes, admin replies and conductor tasks with
         unread badges.
       </Text>
@@ -95,9 +74,6 @@ export const UpdatesScreen = () => {
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
       />
-=======
-        Announcements, route changes, admin replies and conductor tasks.
-      </Text>
 
       {items.length === 0 ? (
         <EmptyState
@@ -138,7 +114,9 @@ export const UpdatesScreen = () => {
                 onResponderRelease={() => dispatch(markUpdateComplete(item.id))}
               >
                 <MaterialCommunityIcons
-                  name={item.completed ? "check-circle" : "check-circle-outline"}
+                  name={
+                    item.completed ? "check-circle" : "check-circle-outline"
+                  }
                   size={18}
                   color="#fff"
                 />
@@ -151,7 +129,6 @@ export const UpdatesScreen = () => {
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         />
       )}
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
     </Screen>
   );
 };

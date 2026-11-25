@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-<<<<<<< HEAD
 import {
   FlatList,
   Modal,
@@ -10,11 +9,6 @@ import {
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-=======
-import { FlatList, Pressable, StyleSheet, Text, View, Alert } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Location from "expo-location";
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
 import { AppCard } from "../components/AppCard";
 import { MetricPill } from "../components/MetricPill";
@@ -23,7 +17,6 @@ import { SectionHeader } from "../components/SectionHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { colors, radii, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-<<<<<<< HEAD
 import {
   refreshActiveBuses,
   refreshBusStatus,
@@ -42,11 +35,6 @@ import {
   mockApi,
 } from "../services/mockApi";
 import { storage } from "../services/storage";
-=======
-import { setBusStatus, setBusLoading, setBusError } from "../store/slices/busSlice";
-import { currency } from "../utils/format";
-import { sendHeartbeat } from "../services/api";
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
 
 const cards = [
   {
@@ -137,7 +125,6 @@ export const DashboardScreen = ({ navigation }) => {
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.conductor.profile);
   const route = useAppSelector((state) => state.route.route);
-<<<<<<< HEAD
   const refreshRequired = useAppSelector(
     (state) => state.route.refreshRequired,
   );
@@ -310,17 +297,9 @@ export const DashboardScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate(item.screen)}
               />
             )}
-=======
-  const status = useAppSelector((state) => state.bus.status);
-  const loadingBus = useAppSelector((state) => state.bus.loading);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Basic loading logic based on route/profile existence
-    if (profile && route) {
-      setLoading(false);
-    } else {
-      const fallback = setTimeout(() => setLoading(false), 3000);
+    </Screen>
+  );
+};
       return () => clearTimeout(fallback);
     }
   }, [profile, route]);
@@ -406,96 +385,12 @@ export const DashboardScreen = ({ navigation }) => {
               </Text>
             </View>
             <StatusBadge label="ONLINE" tone="success" />
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
           </View>
         )}
       />
-
-<<<<<<< HEAD
-      <Modal visible={devOpen} animationType="slide" transparent>
-        <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
-          <View
-            style={{ backgroundColor: "#fff", borderRadius: 8, padding: 16 }}
-          >
-            <Text style={{ fontWeight: "800", marginBottom: 8 }}>
-              Developer Tools
-            </Text>
-            <TextInput
-              value={apiHost}
-              onChangeText={setApiHost}
-              placeholder="API base URL override (run npm run env to refresh)"
-              style={{
-                borderWidth: 1,
-                borderColor: "#ddd",
-                padding: 8,
-                marginBottom: 8,
-              }}
-            />
-            <Pressable
-              onPress={async () => {
-                try {
-                  await storage.saveApiBaseUrl(apiHost || null);
-                  setTestResult("Saved override");
-                } catch (error) {
-                  setTestResult("Save failed: " + (error && error.message));
-                }
-              }}
-              style={[styles.refreshButton, { alignSelf: "flex-start" }]}
-            >
-              <Text style={styles.refreshText}>Save Host</Text>
-            </Pressable>
-
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={async () => {
-                setTestResult("Testing...");
-                const started = Date.now();
-                try {
-                  await mockApi.reloadMock();
-                  const ms = Date.now() - started;
-                  setDiagSource(`${lastMockDataSource} @ ${lastMockDataTime}`);
-                  setTestResult(`OK (${ms}ms) - source ${lastMockDataSource}`);
-                } catch (error) {
-                  setTestResult("Test failed: " + (error && error.message));
-                }
-              }}
-              style={[styles.refreshButton, { alignSelf: "flex-start" }]}
-            >
-              <Text style={styles.refreshText}>Test Connectivity</Text>
-            </Pressable>
-
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={async () => {
-                try {
-                  await mockApi.clearMockCache();
-                  dispatch(setRefreshRequired(true));
-                  dispatch(setRoute(null));
-                  setTestResult("Initializer cache cleared");
-                } catch (error) {
-                  setTestResult("Failed: " + (error && error.message));
-                }
-              }}
-              style={[styles.refreshButton, { alignSelf: "flex-start" }]}
-            >
-              <Text style={styles.refreshText}>Run Initializer Flow</Text>
-            </Pressable>
-
-            <View style={{ height: 12 }} />
-            <Text>{testResult}</Text>
-            <Text>{diagSource}</Text>
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={() => setDevOpen(false)}
-              style={[styles.refreshButton, { alignSelf: "flex-end" }]}
-            >
-              <Text style={styles.refreshText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-=======
-          <View style={styles.metricsRow}>
+    </Screen>
+  );
+};
             <MetricPill
               label="Live Speed"
               value={
@@ -556,7 +451,6 @@ export const DashboardScreen = ({ navigation }) => {
           </View>
         </>
       )}
->>>>>>> da96a6a0d115137ee22cf4d68500d252ffd4c98d
     </Screen>
   );
 };
