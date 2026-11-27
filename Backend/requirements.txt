@@ -35,3 +35,7 @@ gunicorn>=21.2.0
 # Database URL configuration (Neon, Render, Supabase)
 dj-database-url>=2.2.0
 
+# Static file serving for production (Render)
+whitenoise>=6.7.0
+
+
