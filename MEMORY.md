@@ -62,7 +62,7 @@
 
 ---
 
-## Active Immediate Tasks (Stage 3 Technical Fixes)
-1. **Incident State Machine (`PATCH /api/v1/admin/incidents/<id>/status/`)**: Allow admin to Acknowledge/Resolve alarms to prevent alert fatigue.
-2. **Mid-Shift Reassignment Protocol**: Enable bus swaps on breakdowns without resetting shift revenue logs.
-3. **Django Channels & WebSocket Setup**: ASGI upgrade for real-time fleet push.
+## Active Immediate Tasks (Stage 3 & 4 Integration)
+1. **Swaym Yatri Public Commuter Platform (`Swaym-Yatri/`)**: Unified Next.js PWA + Expo React Native app into `Jawwad`, removed isolated mock backend (`User_Swaym-Yatri/Backend/`), and wired `/api/v1/public/*` directly to PostGIS & live `Shift`/`BusLocation`/`Ticket` models in `Backend/core/`.
+2. **Stage 4 Improvements Completed**: Added Real-Time Crowdedness indicators (`green`/`yellow`/`red` vs 45 seated / 56 capacity), 1-click Origin/Destination swap (`⇄`), and Next.js PWA (`app/manifest.js` + `public/sw.js`).
+3. **Next Cloud Sync Step**: Push `Jawwad` to Render (`https://trixul.onrender.com`) and configure `CSRF_TRUSTED_ORIGINS` / `CORS_ALLOWED_ORIGINS` for the deployed Swaym Yatri frontend origin.

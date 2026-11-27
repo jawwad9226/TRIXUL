@@ -419,6 +419,46 @@ def test_route_update_and_delete():
 
 results.append(("Admin: Update & Delete Route (PUT & DELETE /api/v1/admin/routes/<id>/)", *run_test("Route Modification & Deletion", test_route_update_and_delete)))
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. PUBLIC COMMUTER PLATFORM (SWAYM YATRI) ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+print_header("STAGE 4: SWAYM YATRI PUBLIC COMMUTER ENDPOINTS")
+
+def test_public_stops_and_routes():
+    stops_resp = client.get("/api/v1/public/stops/?q=Akola")
+    stops_ok = stops_resp.status_code == 200 and stops_resp.data.get("data_source") == "live" and len(stops_resp.data.get("stops", [])) >= 1
+    routes_resp = client.get("/api/v1/public/routes/?origin_stop_id=STP-AKL&destination_stop_id=STP-SHG")
+    routes_ok = routes_resp.status_code == 200 and len(routes_resp.data.get("routes", [])) >= 1
+    detail_resp = client.get("/api/v1/public/routes/route-102/")
+    detail_ok = detail_resp.status_code == 200 and len(detail_resp.data.get("fares", [])) > 0
+    return {"passed": stops_ok and routes_ok and detail_ok, "status_code": detail_resp.status_code}
+
+results.append(("Public: Stops, Routes Search & Detail (/api/v1/public/routes/)", *run_test("Public Stops & Route Discovery", test_public_stops_and_routes)))
+
+def test_public_live_buses_and_eta():
+    buses_resp = client.get("/api/v1/public/buses/live/?route_id=route-102")
+    buses = buses_resp.data.get("buses", []) if buses_resp.status_code == 200 else []
+    buses_ok = buses_resp.status_code == 200 and len(buses) >= 1 and "crowdedness_level" in buses[0]
+    eta_ok = False
+    if buses_ok:
+        bus_id = buses[0]["bus_id"]
+        eta_resp = client.get(f"/api/v1/public/buses/{bus_id}/eta/?stop_id=STP-SHG")
+        eta_ok = eta_resp.status_code == 200 and eta_resp.data.get("eta_minutes") is not None
+    return {"passed": buses_ok and eta_ok, "status_code": buses_resp.status_code}
+
+results.append(("Public: Live Buses, Crowdedness & PostGIS ETA (/api/v1/public/buses/)", *run_test("Public Live Buses & ETA", test_public_live_buses_and_eta)))
+
+def test_public_otp_session_flow():
+    csrf_resp = client.get("/api/v1/public/auth/csrf/")
+    csrf_ok = csrf_resp.status_code == 200 and bool(csrf_resp.data.get("csrf_token"))
+    sess_resp = client.get("/api/v1/public/auth/session/")
+    sess_ok = sess_resp.status_code == 200 and sess_resp.data.get("authenticated") is False
+    otp_req = client.post("/api/v1/public/auth/otp/request/", {"phone_number": "+919876543210"}, format="json")
+    otp_ok = otp_req.status_code == 200 and otp_req.data.get("delivery_mode") == "console"
+    return {"passed": csrf_ok and sess_ok and otp_ok, "status_code": otp_req.status_code}
+
+results.append(("Public: CSRF & Console OTP Auth Flow (/api/v1/public/auth/)", *run_test("Public Auth CSRF & OTP Request", test_public_otp_session_flow)))
+
 # Maintain initial active shifts so demo/radar state is preserved
 from core.models import Shift
 Shift.objects.filter(shift_id="shift-001").update(status="Active")

@@ -1,10 +1,75 @@
+import hashlib
+import hmac
+import logging
+import math
+import secrets
+import time
 import uuid
-from decimal import Decimal
+from datetime import timedelta
+from decimal import Decimal, ROUND_HALF_UP
+from django.conf import settings
 from django.contrib.gis.geos import Point
 from django.contrib.gis.db.models.functions import Distance
+from django.core.cache import cache
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from .models import Route, RouteStop, FareRule, Stop, Shift, BusLocation, Ticket, Incident, Employee, Bus
+
+logger = logging.getLogger(__name__)
+
+
+def _compute_fare_matrix(route_stops, fare_rule):
+    """Shared fare matrix calculation reused by ETM route init and Swaym Yatri public APIs."""
+    if fare_rule:
+        base_fare = fare_rule.base_fare
+        per_km_rate = fare_rule.per_km_rate
+        discount_pct = float(getattr(fare_rule, 'discount_percentage', 0) or 0)
+    else:
+        base_fare = Decimal('10.00')
+        per_km_rate = Decimal('1.50')
+        discount_pct = 0.0
+
+    discount_multiplier = Decimal(str(1.0 - (discount_pct / 100.0))) if discount_pct > 0 else Decimal('1.00')
+    entries = []
+    n = len(route_stops)
+    for i in range(n):
+        for j in range(i + 1, n):
+            rs_from = route_stops[i]
+            rs_to = route_stops[j]
+            distance_diff = abs(Decimal(str(rs_to.distance_km)) - Decimal(str(rs_from.distance_km)))
+            fare = ((base_fare + distance_diff * per_km_rate) * discount_multiplier).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
+            entries.append({
+                "from": rs_from.stop.stop_name,
+                "to": rs_to.stop.stop_name,
+                "from_stop_id": rs_from.stop.stop_id,
+                "to_stop_id": rs_to.stop.stop_id,
+                "fare": fare,
+            })
+    return entries, base_fare, per_km_rate, discount_pct
+
+
+def _closest_route_stop(route, point):
+    """Shared PostGIS nearest-stop lookup on a route."""
+    route_stops = list(
+        RouteStop.objects.filter(route=route)
+        .select_related('stop')
+        .annotate(dist=Distance('stop__gps_location', point))
+        .order_by('sequence')
+    )
+    closest_rs = min(route_stops, key=lambda rs: rs.dist.m) if route_stops else None
+    return route_stops, closest_rs
+
+
+def _crowdedness_summary(passenger_count, capacity_total):
+    """Maps live passenger count against 45 seated / 56 total capacity limits."""
+    capacity = capacity_total or 56
+    if passenger_count >= capacity:
+        return "red", "Bus Full"
+    if passenger_count >= 45:
+        return "yellow", "Standing Only"
+    return "green", "Seats Available"
 
 class RouteService:
     @staticmethod
@@ -74,35 +139,18 @@ class RouteService:
             })
 
         # Calculate fares between all pairs of stops based on FareRule
-        fares_data = []
-        try:
-            fare_rule = FareRule.objects.get(route=route)
-            base_fare = fare_rule.base_fare
-            per_km_rate = fare_rule.per_km_rate
-            discount_pct = float(getattr(fare_rule, 'discount_percentage', 0) or 0)
-        except FareRule.DoesNotExist:
-            base_fare = Decimal('10.00')
-            per_km_rate = Decimal('1.50')
-            discount_pct = 0.0
-
-        n = len(route_stops)
-        discount_multiplier = Decimal(str(1.0 - (discount_pct / 100.0))) if discount_pct > 0 else Decimal('1.00')
-        for i in range(n):
-            for j in range(i + 1, n):
-                rs_from = route_stops[i]
-                rs_to = route_stops[j]
-                
-                distance_diff = abs(Decimal(str(rs_to.distance_km)) - Decimal(str(rs_from.distance_km)))
-                raw_price = base_fare + (distance_diff * per_km_rate)
-                price = raw_price * discount_multiplier
-                
-                fares_data.append({
-                    "from": rs_from.stop.stop_name,
-                    "to": rs_to.stop.stop_name,
-                    "from_stop_id": rs_from.stop.stop_id,
-                    "to_stop_id": rs_to.stop.stop_id,
-                    "price": float(price.quantize(Decimal('0.00')))
-                })
+        fare_rule = FareRule.objects.filter(route=route).first()
+        fare_entries, _, _, discount_pct = _compute_fare_matrix(route_stops, fare_rule)
+        fares_data = [
+            {
+                "from": e["from"],
+                "to": e["to"],
+                "from_stop_id": e["from_stop_id"],
+                "to_stop_id": e["to_stop_id"],
+                "price": float(e["fare"]),
+            }
+            for e in fare_entries
+        ]
 
         # Government / Admin active schemes
         active_yojnas = {
@@ -168,15 +216,9 @@ class TelemetryService:
         )
 
         # Real PostGIS calculation: Find stops on route ordered by distance
-        route_stops = list(
-            RouteStop.objects.filter(route=shift.route)
-            .select_related('stop')
-            .annotate(dist=Distance('stop__gps_location', current_location))
-            .order_by('sequence')
-        )
+        route_stops, closest_rs = _closest_route_stop(shift.route, current_location)
 
-        if route_stops:
-            closest_rs = min(route_stops, key=lambda rs: rs.dist.m)
+        if route_stops and closest_rs:
             current_stop_name = closest_rs.stop.stop_name
 
             # Next stop is the subsequent sequence stop, or destination if at the final stop
@@ -188,9 +230,9 @@ class TelemetryService:
             eff_speed = speed if speed > 10 else 35.0  # default 35 km/h if stationary
             eta_mins = max(2, int((dist_diff / eff_speed) * 60)) if next_rs else 0
         else:
-            current_stop_name = "Akola Bus Stand"
-            next_stop_name = "Shegaon"
-            eta_mins = 8
+            current_stop_name = "In Transit"
+            next_stop_name = "Route End"
+            eta_mins = 0
 
         condition = "Moving" if speed > 5 else "Stationary / Boarding"
         pax_today = Ticket.objects.filter(shift=shift).aggregate(pax=Sum('passenger_count'))['pax'] or 0
@@ -1147,4 +1189,333 @@ class FareControlService:
             "discount_percentage": float(discount),
             "message": f"Updated dynamic fare controls for {updated_count} route(s)."
         }
+
+
+# ============================================================
+# STAGE 4 — Public Commuter Platform (Swaym Yatri) Services
+# ============================================================
+
+class PublicAuthService:
+    OTP_TTL_SECONDS = 60
+    OTP_REQUEST_WINDOW_SECONDS = 600
+    OTP_REQUEST_LIMIT_PER_PHONE = 3
+    OTP_REQUEST_LIMIT_PER_IP = 5
+    OTP_ATTEMPT_LIMIT = 5
+
+    @staticmethod
+    def _phone_digest(phone_number):
+        return hashlib.sha256(phone_number.encode()).hexdigest()
+
+    @staticmethod
+    def _otp_digest(phone_number, code):
+        return hmac.new(
+            settings.SECRET_KEY.encode(),
+            f"{phone_number}:{code}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
+    @classmethod
+    def _increment_within_limit(cls, key, limit):
+        if cache.add(key, 1, timeout=cls.OTP_REQUEST_WINDOW_SECONDS):
+            return True
+        try:
+            return cache.incr(key) <= limit
+        except ValueError:
+            return cache.add(key, 1, timeout=cls.OTP_REQUEST_WINDOW_SECONDS)
+
+    @staticmethod
+    def _mask_phone(phone_number):
+        return f"{phone_number[:3]}{'*' * (len(phone_number) - 5)}{phone_number[-2:]}"
+
+    @classmethod
+    def issue_console_otp(cls, phone_number, client_ip):
+        if not settings.DEBUG:
+            return {"detail": "Phone sign-in is unavailable until SMS delivery is configured."}, 503
+
+        phone_digest = cls._phone_digest(phone_number)
+        ip_digest = hashlib.sha256((client_ip or "unknown").encode()).hexdigest()
+        if not cls._increment_within_limit(f"otp:request:ip:{ip_digest}", cls.OTP_REQUEST_LIMIT_PER_IP):
+            return {"detail": "Too many code requests. Try again later."}, 429
+        if not cls._increment_within_limit(
+            f"otp:request:phone:{phone_digest}",
+            cls.OTP_REQUEST_LIMIT_PER_PHONE,
+        ):
+            return {"detail": "Too many code requests. Try again later."}, 429
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        expires_at = time.time() + cls.OTP_TTL_SECONDS
+        cache.set(
+            f"otp:challenge:{phone_digest}",
+            {
+                "code_digest": cls._otp_digest(phone_number, code),
+                "attempts": 0,
+                "expires_at": expires_at,
+            },
+            timeout=cls.OTP_TTL_SECONDS,
+        )
+        logger.warning("Development OTP for %s: %s", cls._mask_phone(phone_number), code)
+        return {"delivery_mode": "console", "expires_in": cls.OTP_TTL_SECONDS}, 200
+
+    @classmethod
+    def verify_console_otp(cls, phone_number, code):
+        if not settings.DEBUG:
+            return {"detail": "Phone sign-in is unavailable until SMS delivery is configured."}, 503
+
+        key = f"otp:challenge:{cls._phone_digest(phone_number)}"
+        challenge = cache.get(key)
+        if challenge is None or challenge["expires_at"] <= time.time():
+            cache.delete(key)
+            return {"detail": "Code expired. Request a new one."}, 400
+
+        if not hmac.compare_digest(challenge["code_digest"], cls._otp_digest(phone_number, code)):
+            challenge["attempts"] += 1
+            if challenge["attempts"] >= cls.OTP_ATTEMPT_LIMIT:
+                cache.delete(key)
+                return {"detail": "Too many incorrect codes. Request a new one."}, 429
+            cache.set(
+                key,
+                challenge,
+                timeout=max(1, math.ceil(challenge["expires_at"] - time.time())),
+            )
+            return {"detail": "Incorrect code."}, 400
+
+        cache.delete(key)
+        return {"phone_digest": cls._phone_digest(phone_number)}, 200
+
+
+class PublicTransitService:
+    STALE_THRESHOLD_SECONDS = 120
+
+    @staticmethod
+    def _ordered_route_stops(route):
+        return list(
+            RouteStop.objects.filter(route=route)
+            .select_related('stop')
+            .order_by('sequence')
+        )
+
+    @classmethod
+    def _shift_live_state(cls, shift, ordered_stops=None):
+        """Resolves latest BusLocation, closest route stop via PostGIS, and Stage 4 crowdedness."""
+        stops = ordered_stops if ordered_stops is not None else cls._ordered_route_stops(shift.route)
+        latest_loc = BusLocation.objects.filter(shift=shift).order_by('-timestamp').first()
+        now = timezone.now()
+
+        if latest_loc and latest_loc.current_location:
+            bus_point = latest_loc.current_location
+            speed_kmh = float(latest_loc.speed or 0.0)
+            last_updated_at = latest_loc.timestamp
+            is_stale = (now - latest_loc.timestamp) > timedelta(seconds=cls.STALE_THRESHOLD_SECONDS)
+            _, closest_rs = _closest_route_stop(shift.route, bus_point)
+        else:
+            closest_rs = stops[0] if stops else None
+            if not closest_rs or not closest_rs.stop.gps_location:
+                return None
+            bus_point = closest_rs.stop.gps_location
+            speed_kmh = 0.0
+            last_updated_at = now
+            is_stale = True
+
+        pax = Ticket.objects.filter(shift=shift).aggregate(pax=Sum('passenger_count'))['pax'] or 0
+        capacity = shift.bus.capacity_total or 56
+        crowdedness_level, crowdedness_label = _crowdedness_summary(pax, capacity)
+
+        return {
+            "shift": shift,
+            "bus_point": bus_point,
+            "current_rs": closest_rs,
+            "speed_kmh": speed_kmh,
+            "last_updated_at": last_updated_at,
+            "is_stale": is_stale,
+            "passenger_count": pax,
+            "capacity_total": capacity,
+            "crowdedness_level": crowdedness_level,
+            "crowdedness_label": crowdedness_label,
+        }
+
+    @staticmethod
+    def _route_matches_stops(ordered_stops, origin_id, destination_id):
+        positions = {rs.stop.stop_id: rs.sequence for rs in ordered_stops}
+        if origin_id and destination_id:
+            return (
+                origin_id in positions
+                and destination_id in positions
+                and positions[destination_id] > positions[origin_id]
+            )
+        if origin_id:
+            return origin_id in positions
+        if destination_id:
+            return destination_id in positions
+        return True
+
+    @classmethod
+    def list_routes(cls, filters):
+        query = (filters.get("q") or "").casefold()
+        origin_id = filters.get("origin_stop_id")
+        destination_id = filters.get("destination_stop_id")
+
+        active_shifts_by_route = {}
+        for s in Shift.objects.filter(status='Active').select_related('bus', 'route'):
+            active_shifts_by_route.setdefault(s.route_id, []).append(s)
+
+        results = []
+        for route in Route.objects.prefetch_related('route_stops__stop').all().order_by('route_id'):
+            if query and query not in route.route_id.casefold() and query not in route.route_name.casefold():
+                continue
+            ordered_stops = sorted(route.route_stops.all(), key=lambda rs: rs.sequence)
+            if not cls._route_matches_stops(ordered_stops, origin_id, destination_id):
+                continue
+
+            route_shifts = active_shifts_by_route.get(route.route_id, [])
+            if destination_id and route_shifts:
+                positions = {rs.stop.stop_id: rs.sequence for rs in ordered_stops}
+                dest_seq = positions.get(destination_id)
+                active_bus_count = 0
+                for shift in route_shifts:
+                    state = cls._shift_live_state(shift, ordered_stops)
+                    if not state:
+                        continue
+                    cur_rs = state["current_rs"]
+                    if cur_rs and dest_seq is not None and cur_rs.sequence <= dest_seq:
+                        active_bus_count += 1
+            else:
+                active_bus_count = len(route_shifts)
+
+            results.append({
+                "route_id": route.route_id,
+                "route_name": route.route_name,
+                "origin_stop_id": ordered_stops[0].stop.stop_id if ordered_stops else None,
+                "destination_stop_id": ordered_stops[-1].stop.stop_id if ordered_stops else None,
+                "stop_count": len(ordered_stops),
+                "active_bus_count": active_bus_count,
+            })
+        return {"data_source": "live", "routes": results}
+
+    @classmethod
+    def get_route_detail(cls, route_id):
+        route = Route.objects.filter(route_id=route_id).first()
+        if route is None:
+            return None
+
+        ordered_stops = cls._ordered_route_stops(route)
+        fare_rule_obj = FareRule.objects.filter(route=route).first()
+        fare_entries, base_fare, per_km_rate, discount_pct = _compute_fare_matrix(ordered_stops, fare_rule_obj)
+
+        route_stops_payload = [
+            {
+                "stop_id": rs.stop.stop_id,
+                "stop_name": rs.stop.stop_name,
+                "latitude": rs.stop.gps_location.y if rs.stop.gps_location else None,
+                "longitude": rs.stop.gps_location.x if rs.stop.gps_location else None,
+                "sequence": rs.sequence,
+                "distance_km": rs.distance_km,
+            }
+            for rs in ordered_stops
+        ]
+        fare_rule_payload = (
+            {
+                "base_fare": base_fare,
+                "per_km_rate": per_km_rate,
+                "discount_percentage": Decimal(str(discount_pct)).quantize(Decimal('0.01')),
+            }
+            if fare_rule_obj else None
+        )
+        fares_payload = [
+            {
+                "from_stop_id": e["from_stop_id"],
+                "to_stop_id": e["to_stop_id"],
+                "fare": e["fare"],
+            }
+            for e in fare_entries
+        ]
+        return {
+            "data_source": "live",
+            "route_id": route.route_id,
+            "route_name": route.route_name,
+            "route_stops": route_stops_payload,
+            "fare_rule": fare_rule_payload,
+            "fares": fares_payload,
+        }
+
+    @staticmethod
+    def list_stops(query=None):
+        """Reuses AdminRouteManagementService.list_stops() with optional search filter."""
+        stops = AdminRouteManagementService.list_stops()
+        normalized_query = (query or "").casefold()
+        if normalized_query:
+            stops = [s for s in stops if normalized_query in s["stop_name"].casefold()]
+        return {"data_source": "live", "stops": stops}
+
+    @classmethod
+    def list_live_buses(cls, route_id=None, destination_stop_id=None):
+        shifts_qs = Shift.objects.filter(status='Active').select_related('bus', 'route')
+        if route_id:
+            shifts_qs = shifts_qs.filter(route_id=route_id)
+
+        buses = []
+        route_stops_cache = {}
+        for shift in shifts_qs:
+            if shift.route_id not in route_stops_cache:
+                route_stops_cache[shift.route_id] = cls._ordered_route_stops(shift.route)
+            ordered_stops = route_stops_cache[shift.route_id]
+            state = cls._shift_live_state(shift, ordered_stops)
+            if not state:
+                continue
+            current_rs = state["current_rs"]
+
+            if destination_stop_id:
+                positions = {rs.stop.stop_id: rs.sequence for rs in ordered_stops}
+                dest_seq = positions.get(destination_stop_id)
+                if dest_seq is None or current_rs is None or current_rs.sequence > dest_seq:
+                    continue
+
+            buses.append({
+                "bus_id": shift.bus.bus_id,
+                "bus_registration": shift.bus.registration_number,
+                "route_id": shift.route.route_id,
+                "current_stop_id": current_rs.stop.stop_id if current_rs else None,
+                "current_stop_name": current_rs.stop.stop_name if current_rs else "In Transit",
+                "latitude": state["bus_point"].y,
+                "longitude": state["bus_point"].x,
+                "speed_kmh": state["speed_kmh"],
+                "last_updated_at": state["last_updated_at"],
+                "is_stale": state["is_stale"],
+                "data_source": "live",
+                "passenger_count": state["passenger_count"],
+                "capacity_total": state["capacity_total"],
+                "crowdedness_level": state["crowdedness_level"],
+                "crowdedness_label": state["crowdedness_label"],
+            })
+        return {"data_source": "live", "buses": buses}
+
+    @classmethod
+    def get_bus_eta(cls, bus_id, stop_id):
+        shift = Shift.objects.filter(bus__bus_id=bus_id, status='Active').select_related('bus', 'route').first()
+        if shift is None:
+            return {"error": "No active bus found."}, 404
+
+        stop_on_route = RouteStop.objects.filter(route=shift.route, stop__stop_id=stop_id).select_related('stop').first()
+        if stop_on_route is None:
+            return {"error": "Stop is not on the bus's active route."}, 404
+
+        state = cls._shift_live_state(shift)
+        if not state:
+            return {"error": "Bus location is not available yet."}, 404
+        bus_point = state["bus_point"]
+        # Execute PostGIS spatial distance computation in PostgreSQL
+        target_stop = Stop.objects.filter(stop_id=stop_id).annotate(dist=Distance('gps_location', bus_point)).first()
+        distance_km = round(target_stop.dist.km, 3) if target_stop and target_stop.dist else 0.0
+        eff_speed = state["speed_kmh"] if state["speed_kmh"] > 5 else 35.0
+        eta_minutes = 0 if distance_km < 0.2 else math.ceil((distance_km / eff_speed) * 60)
+
+        return {
+            "bus_id": bus_id,
+            "stop_id": stop_id,
+            "distance_km": distance_km,
+            "eta_minutes": eta_minutes,
+            "speed_kmh": state["speed_kmh"],
+            "last_updated_at": state["last_updated_at"],
+            "is_stale": state["is_stale"],
+            "data_source": "live",
+        }, 200
 
