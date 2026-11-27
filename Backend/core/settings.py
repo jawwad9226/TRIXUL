@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import dj_database_url
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (safe to call even if file doesn't exist)
@@ -76,16 +77,26 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # ============================================================
 # DATABASE — All credentials from .env
 # ============================================================
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': os.environ.get('DB_NAME', 'trixul_db'),
-        'USER': os.environ.get('DB_USER', 'trixul_admin'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ['DATABASE_URL'],
+            engine='django.contrib.gis.db.backends.postgis',
+            conn_max_age=0,
+            ssl_require=True,
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.contrib.gis.db.backends.postgis',
+            'NAME': os.environ.get('DB_NAME', 'trixul_db'),
+            'USER': os.environ.get('DB_USER', 'trixul_admin'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+        }
+    }
 
 # ============================================================
 # CACHE — Redis in production, local memory as dev fallback
