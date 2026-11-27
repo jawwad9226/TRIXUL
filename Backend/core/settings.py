@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
@@ -154,6 +155,10 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
+    # 12-hour operational shift token duration
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
     # Use emp_id as the token identity field
     'USER_ID_FIELD': 'emp_id',
     'USER_ID_CLAIM': 'emp_id',

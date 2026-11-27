@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useColorScheme,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
@@ -32,8 +33,12 @@ import {
 import { issueTicket } from "../services/api";
 import { calculateFare, totalPassengers } from "../utils/fare";
 import { currency, timeLabel } from "../utils/format";
+import { PrintedTicketModal } from "../components/PrintedTicketModal";
 
 export const TicketBookingScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const isDark = scheme === "dark";
+  const theme = colors[scheme];
   const dispatch = useAppDispatch();
   const route = useAppSelector((state) => state.route.route);
   const stops = route?.stops ?? [];
@@ -44,6 +49,7 @@ export const TicketBookingScreen = () => {
   const bookingError = useAppSelector((state) => state.ticket.bookingError);
   const profile = useAppSelector((state) => state.conductor.profile);
   const [isIssuing, setIsIssuing] = useState(false);
+  const [printedTicketSlip, setPrintedTicketSlip] = useState(null);
 
   // Active Yojana concessions (admin-managed configuration)
   const activeYojnas = route?.activeYojnas ?? {
@@ -152,12 +158,25 @@ export const TicketBookingScreen = () => {
       }
 
       await dispatch(submitBooking({ ticket_id: ticketId })).unwrap();
-      Alert.alert(
-        isOfflineSaved ? "Ticket Issued (Offline Queue)" : "Ticket Printed & Saved",
-        isOfflineSaved
-          ? `Ticket #${ticketId} saved to terminal storage. Will batch sync to Central Server on reconnection.`
-          : `Ticket #${ticketId} issued successfully for ${currency(fare.finalAmount)}.`
-      );
+      
+      const boardingStopObj = stops.find((s) => (s.stop_id || s.id) === draft.boardingStop);
+      const destStopObj = stops.find((s) => (s.stop_id || s.id) === draft.destinationStop);
+
+      setPrintedTicketSlip({
+        ticket_id: ticketId,
+        source_stop: boardingStopObj?.name || draft.boardingStop,
+        dest_stop: destStopObj?.name || draft.destinationStop,
+        passenger_count: total,
+        passengerCounts: draft.passengerCounts,
+        total_fare: fare.finalAmount,
+        payment_method: draft.paymentMode,
+        timestamp: payload.timestamp,
+        busNumber: profile?.busNumber || "MH-30-AB-1234",
+        shift_id: profile?.shiftId || "shift-001",
+        conductorName: profile?.conductorName || "Active Conductor",
+        conductorId: profile?.conductorId || "cond-1001",
+        routeName: route?.route_name || "MSRTC State Highway Route",
+      });
     } catch (error) {
       Alert.alert(
         "Booking failed",
@@ -179,8 +198,8 @@ export const TicketBookingScreen = () => {
       {/* Screen Title */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Ticket Booking</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: theme.text }]}>Ticket Booking</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
             One-handed rapid fare issuance with auto-concession rules
           </Text>
         </View>
@@ -191,9 +210,9 @@ export const TicketBookingScreen = () => {
       </View>
 
       {/* Origin Stop Section with Smart Chips */}
-      <View style={styles.panel}>
-        <Text style={styles.sectionTitle}>1. Boarding From</Text>
-        <Text style={styles.helperText}>
+      <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>1. Boarding From</Text>
+        <Text style={[styles.helperText, { color: theme.textMuted }]}>
           Quick-select from recent stops or tap the dropdown below:
         </Text>
 
@@ -206,6 +225,7 @@ export const TicketBookingScreen = () => {
               }
               style={[
                 styles.quickChip,
+                { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
                 draft.boardingStop === (prevStop.stop_id || prevStop.id) &&
                   styles.quickChipActive,
               ]}
@@ -214,6 +234,7 @@ export const TicketBookingScreen = () => {
               <Text
                 style={[
                   styles.quickChipText,
+                  { color: theme.text },
                   draft.boardingStop === (prevStop.stop_id || prevStop.id) &&
                     styles.quickChipTextActive,
                 ]}
@@ -230,6 +251,7 @@ export const TicketBookingScreen = () => {
             }
             style={[
               styles.quickChip,
+              { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
               draft.boardingStop === (currentStop.stop_id || currentStop.id) &&
                 styles.quickChipActive,
             ]}
@@ -238,6 +260,7 @@ export const TicketBookingScreen = () => {
             <Text
               style={[
                 styles.quickChipText,
+                { color: theme.text },
                 draft.boardingStop === (currentStop.stop_id || currentStop.id) &&
                   styles.quickChipTextActive,
               ]}
@@ -254,6 +277,7 @@ export const TicketBookingScreen = () => {
               }
               style={[
                 styles.quickChip,
+                { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
                 draft.boardingStop === (nextStop.stop_id || nextStop.id) &&
                   styles.quickChipActive,
               ]}
@@ -262,6 +286,7 @@ export const TicketBookingScreen = () => {
               <Text
                 style={[
                   styles.quickChipText,
+                  { color: theme.text },
                   draft.boardingStop === (nextStop.stop_id || nextStop.id) &&
                     styles.quickChipTextActive,
                 ]}
@@ -274,17 +299,28 @@ export const TicketBookingScreen = () => {
         </View>
 
         {/* Full Dropdown for Boarding */}
-        <View style={styles.selectBox}>
+        <View style={[styles.selectBox, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", borderColor: theme.border, borderWidth: 1 }]}>
           <Picker
             selectedValue={draft.boardingStop}
             onValueChange={(value) => dispatch(updateDraft({ boardingStop: value }))}
-            style={styles.picker}
+            style={[
+              styles.picker,
+              {
+                color: isDark ? "#f8fafc" : "#0f172a",
+                backgroundColor: isDark ? "#1e293b" : "#f8fafc",
+              },
+            ]}
+            dropdownIconColor={isDark ? "#f8fafc" : "#0f172a"}
           >
             {stops.map((stop, idx) => (
               <Picker.Item
                 key={stop.id || stop.stop_id || idx}
                 label={`Stop #${idx + 1}: ${stop.name}`}
                 value={stop.stop_id || stop.id}
+                style={{
+                  backgroundColor: isDark ? "#1e293b" : "#ffffff",
+                  color: isDark ? "#f8fafc" : "#0f172a",
+                }}
               />
             ))}
           </Picker>
@@ -292,20 +328,38 @@ export const TicketBookingScreen = () => {
       </View>
 
       {/* Destination Stop Section */}
-      <View style={styles.panel}>
-        <Text style={styles.sectionTitle}>2. Destination To</Text>
-        <View style={styles.selectBox}>
+      <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>2. Destination To</Text>
+        <View style={[styles.selectBox, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", borderColor: theme.border, borderWidth: 1 }]}>
           <Picker
             selectedValue={draft.destinationStop}
             onValueChange={(value) => dispatch(updateDraft({ destinationStop: value }))}
-            style={styles.picker}
+            style={[
+              styles.picker,
+              {
+                color: isDark ? "#f8fafc" : "#0f172a",
+                backgroundColor: isDark ? "#1e293b" : "#f8fafc",
+              },
+            ]}
+            dropdownIconColor={isDark ? "#f8fafc" : "#0f172a"}
           >
-            <Picker.Item label="Select destination stop..." value="" />
+            <Picker.Item
+              label="Select destination stop..."
+              value=""
+              style={{
+                backgroundColor: isDark ? "#1e293b" : "#ffffff",
+                color: isDark ? "#94a3b8" : "#64748b",
+              }}
+            />
             {stops.map((stop, idx) => (
               <Picker.Item
                 key={stop.id || stop.stop_id || idx}
                 label={`Stop #${idx + 1}: ${stop.name}`}
                 value={stop.stop_id || stop.id}
+                style={{
+                  backgroundColor: isDark ? "#1e293b" : "#ffffff",
+                  color: isDark ? "#f8fafc" : "#0f172a",
+                }}
               />
             ))}
           </Picker>
@@ -313,64 +367,98 @@ export const TicketBookingScreen = () => {
       </View>
 
       {/* Passenger Count Section with Thumb-Friendly Steppers */}
-      <View style={styles.panel}>
+      <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.passengerHeaderRow}>
-          <Text style={styles.sectionTitle}>3. Passenger Counts</Text>
-          <Text style={styles.totalBadge}>Total: {total} Passenger{total !== 1 ? "s" : ""}</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>3. Passenger Counts</Text>
+          <Text
+            style={[
+              styles.totalBadge,
+              {
+                backgroundColor: isDark ? "#183255" : colors.light.primarySoft,
+                color: theme.primary,
+              },
+            ]}
+          >
+            Total: {total} Passenger{total !== 1 ? "s" : ""}
+          </Text>
         </View>
 
         {/* Adult Male (General) */}
-        <View style={styles.stepperItem}>
+        <View style={[styles.stepperItem, { borderBottomColor: theme.border }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.stepperTitle}>Adult Male</Text>
-            <Text style={styles.stepperSubtitle}>Full Standard Fare</Text>
+            <Text style={[styles.stepperTitle, { color: theme.text }]}>Adult Male</Text>
+            <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Full Standard Fare</Text>
           </View>
-          <View style={styles.stepperActions}>
+          <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
             <Pressable
               onPress={() => handleUpdateCount("adultMale", -1)}
               style={styles.stepperBtn}
               hitSlop={8}
             >
-              <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+              <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
             </Pressable>
-            <Text style={styles.stepperVal}>{draft.passengerCounts.adultMale}</Text>
+            <View
+              style={[
+                styles.stepperValBox,
+                {
+                  backgroundColor: isDark ? "#07111f" : "#ffffff",
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Text style={[styles.stepperVal, { color: theme.text }]}>
+                {draft.passengerCounts.adultMale}
+              </Text>
+            </View>
             <Pressable
               onPress={() => handleUpdateCount("adultMale", 1)}
               style={styles.stepperBtn}
               hitSlop={8}
             >
-              <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+              <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
             </Pressable>
           </View>
         </View>
 
         {/* Female (Mahila Sanman Yojana - 50% Concession) */}
         {activeYojnas.mahilaSanman && (
-          <View style={styles.stepperItem}>
+          <View style={[styles.stepperItem, { borderBottomColor: theme.border }]}>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={styles.stepperTitle}>Women</Text>
+                <Text style={[styles.stepperTitle, { color: theme.text }]}>Women</Text>
                 <View style={styles.schemeTag}>
                   <Text style={styles.schemeTagText}>50% Off</Text>
                 </View>
               </View>
-              <Text style={styles.stepperSubtitle}>Mahila Sanman Yojana</Text>
+              <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Mahila Sanman Yojana</Text>
             </View>
-            <View style={styles.stepperActions}>
+            <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
               <Pressable
                 onPress={() => handleUpdateCount("women", -1)}
                 style={styles.stepperBtn}
                 hitSlop={8}
               >
-                <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+                <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
               </Pressable>
-              <Text style={styles.stepperVal}>{draft.passengerCounts.women}</Text>
+              <View
+                style={[
+                  styles.stepperValBox,
+                  {
+                    backgroundColor: isDark ? "#07111f" : "#ffffff",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.stepperVal, { color: theme.text }]}>
+                  {draft.passengerCounts.women}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => handleUpdateCount("women", 1)}
                 style={styles.stepperBtn}
                 hitSlop={8}
               >
-                <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+                <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
               </Pressable>
             </View>
           </View>
@@ -378,31 +466,43 @@ export const TicketBookingScreen = () => {
 
         {/* Senior Citizens (Concession) */}
         {activeYojnas.seniorCitizen && (
-          <View style={styles.stepperItem}>
+          <View style={[styles.stepperItem, { borderBottomColor: theme.border }]}>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={styles.stepperTitle}>Senior Citizens</Text>
+                <Text style={[styles.stepperTitle, { color: theme.text }]}>Senior Citizens</Text>
                 <View style={[styles.schemeTag, { backgroundColor: "#e0f2fe" }]}>
                   <Text style={[styles.schemeTagText, { color: "#0369a1" }]}>75+ Free</Text>
                 </View>
               </View>
-              <Text style={styles.stepperSubtitle}>Amrit Varishtha Concession</Text>
+              <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Amrit Varishtha Concession</Text>
             </View>
-            <View style={styles.stepperActions}>
+            <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
               <Pressable
                 onPress={() => handleUpdateCount("seniors", -1)}
                 style={styles.stepperBtn}
                 hitSlop={8}
               >
-                <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+                <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
               </Pressable>
-              <Text style={styles.stepperVal}>{draft.passengerCounts.seniors}</Text>
+              <View
+                style={[
+                  styles.stepperValBox,
+                  {
+                    backgroundColor: isDark ? "#07111f" : "#ffffff",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.stepperVal, { color: theme.text }]}>
+                  {draft.passengerCounts.seniors}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => handleUpdateCount("seniors", 1)}
                 style={styles.stepperBtn}
                 hitSlop={8}
               >
-                <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+                <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
               </Pressable>
             </View>
           </View>
@@ -413,28 +513,40 @@ export const TicketBookingScreen = () => {
           <View style={[styles.stepperItem, { borderBottomWidth: 0 }]}>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={styles.stepperTitle}>Children (5-12)</Text>
+                <Text style={[styles.stepperTitle, { color: theme.text }]}>Children (5-12)</Text>
                 <View style={[styles.schemeTag, { backgroundColor: "#fef3c7" }]}>
                   <Text style={[styles.schemeTagText, { color: "#b45309" }]}>Half Fare</Text>
                 </View>
               </View>
-              <Text style={styles.stepperSubtitle}>Standard Child Ticket</Text>
+              <Text style={[styles.stepperSubtitle, { color: theme.textMuted }]}>Standard Child Ticket</Text>
             </View>
-            <View style={styles.stepperActions}>
+            <View style={[styles.stepperActions, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
               <Pressable
                 onPress={() => handleUpdateCount("children", -1)}
                 style={styles.stepperBtn}
                 hitSlop={8}
               >
-                <MaterialCommunityIcons name="minus" size={20} color={colors.light.text} />
+                <MaterialCommunityIcons name="minus" size={20} color={theme.text} />
               </Pressable>
-              <Text style={styles.stepperVal}>{draft.passengerCounts.children}</Text>
+              <View
+                style={[
+                  styles.stepperValBox,
+                  {
+                    backgroundColor: isDark ? "#07111f" : "#ffffff",
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.stepperVal, { color: theme.text }]}>
+                  {draft.passengerCounts.children}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => handleUpdateCount("children", 1)}
                 style={styles.stepperBtn}
                 hitSlop={8}
               >
-                <MaterialCommunityIcons name="plus" size={20} color={colors.light.text} />
+                <MaterialCommunityIcons name="plus" size={20} color={theme.text} />
               </Pressable>
             </View>
           </View>
@@ -442,24 +554,26 @@ export const TicketBookingScreen = () => {
       </View>
 
       {/* Payment Mode Selection */}
-      <View style={styles.panel}>
-        <Text style={styles.sectionTitle}>4. Payment Mode</Text>
+      <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>4. Payment Mode</Text>
         <View style={styles.paymentRow}>
           <Pressable
             onPress={() => dispatch(setPaymentMode("cash"))}
             style={[
               styles.payModeBtn,
+              { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
               draft.paymentMode === "cash" && styles.payModeBtnActive,
             ]}
           >
             <MaterialCommunityIcons
               name="cash"
               size={24}
-              color={draft.paymentMode === "cash" ? "#fff" : colors.light.text}
+              color={draft.paymentMode === "cash" ? "#fff" : theme.text}
             />
             <Text
               style={[
                 styles.payModeText,
+                { color: theme.text },
                 draft.paymentMode === "cash" && styles.payModeTextActive,
               ]}
             >
@@ -471,17 +585,19 @@ export const TicketBookingScreen = () => {
             onPress={() => dispatch(setPaymentMode("online"))}
             style={[
               styles.payModeBtn,
+              { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
               draft.paymentMode === "online" && styles.payModeBtnActive,
             ]}
           >
             <MaterialCommunityIcons
               name="qrcode-scan"
               size={22}
-              color={draft.paymentMode === "online" ? "#fff" : colors.light.text}
+              color={draft.paymentMode === "online" ? "#fff" : theme.text}
             />
             <Text
               style={[
                 styles.payModeText,
+                { color: theme.text },
                 draft.paymentMode === "online" && styles.payModeTextActive,
               ]}
             >
@@ -491,9 +607,9 @@ export const TicketBookingScreen = () => {
         </View>
 
         {draft.paymentMode === "online" && (
-          <View style={styles.onlinePayBox}>
-            <Text style={styles.onlinePayTitle}>UPI Payment Verification</Text>
-            <Text style={styles.onlinePayAmount}>{currency(paymentAmount)}</Text>
+          <View style={[styles.onlinePayBox, { backgroundColor: scheme === "dark" ? "#10233b" : "#eef4ff" }]}>
+            <Text style={[styles.onlinePayTitle, { color: theme.text }]}>UPI Payment Verification</Text>
+            <Text style={[styles.onlinePayAmount, { color: theme.primary }]}>{currency(paymentAmount)}</Text>
             <PrimaryButton
               title={paymentStatus === "success" ? "✓ Payment Confirmed" : "Verify UPI Received"}
               tone={paymentStatus === "success" ? "success" : "primary"}
@@ -504,7 +620,7 @@ export const TicketBookingScreen = () => {
         )}
       </View>
 
-      {/* Fare Breakdown Card */}
+      {/* Fare Breakdown Card (High-Contrast Digital Console) */}
       <View style={styles.fareSummaryCard}>
         <View style={styles.fareSummaryRow}>
           <Text style={styles.fareSummaryLabel}>Journey:</Text>
@@ -516,10 +632,10 @@ export const TicketBookingScreen = () => {
         </View>
         {fare.discount > 0 && (
           <View style={styles.fareSummaryRow}>
-            <Text style={[styles.fareSummaryLabel, { color: colors.light.success }]}>
+            <Text style={[styles.fareSummaryLabel, { color: "#4ade80" }]}>
               Yojana Concessions:
             </Text>
-            <Text style={[styles.fareSummaryVal, { color: colors.light.success }]}>
+            <Text style={[styles.fareSummaryVal, { color: "#4ade80" }]}>
               -{currency(fare.discount)}
             </Text>
           </View>
@@ -548,6 +664,14 @@ export const TicketBookingScreen = () => {
           />
         </View>
       </View>
+
+      {/* Printed Ticket Thermal Slip Modal (Item 4) */}
+      <PrintedTicketModal
+        visible={Boolean(printedTicketSlip)}
+        ticket={printedTicketSlip}
+        isReprint={false}
+        onClose={() => setPrintedTicketSlip(null)}
+      />
     </Screen>
   );
 };
@@ -678,22 +802,27 @@ const styles = StyleSheet.create({
   stepperActions: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.light.surfaceAlt,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    overflow: "hidden",
   },
   stepperBtn: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
+  },
+  stepperValBox: {
+    minWidth: 44,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
   },
   stepperVal: {
     fontSize: 18,
     fontWeight: "900",
-    color: colors.light.text,
-    minWidth: 32,
     textAlign: "center",
   },
   paymentRow: {

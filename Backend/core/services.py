@@ -142,7 +142,20 @@ class TelemetryService:
         if not shift:
             shift = Shift.objects.filter(status='Active').first()
         if not shift:
-            return {"status": "error", "message": "No active shift found"}
+            # Auto-provision active shift so heartbeat telemetry is tracked in PostgreSQL
+            route = Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         current_location = Point(longitude, latitude, srid=4326)
 
@@ -207,12 +220,6 @@ class TicketingService:
         total_fare = Decimal(str(data['total_fare']))
         timestamp = data['timestamp']
 
-        shift = Shift.objects.filter(shift_id=shift_id).first()
-        if not shift:
-            shift = Shift.objects.filter(status='Active').first()
-        if not shift:
-            return {"status": "error", "message": "No active shift found"}
-
         # Find source and destination stops by ID or Name
         source_stop = (
             Stop.objects.filter(stop_id=source_stop_id).first()
@@ -225,6 +232,25 @@ class TicketingService:
 
         if not source_stop or not dest_stop:
             return {"status": "error", "message": "Invalid boarding or destination stop"}
+
+        shift = Shift.objects.filter(shift_id=shift_id).first()
+        if not shift:
+            shift = Shift.objects.filter(status='Active').first()
+        if not shift:
+            # Auto-provision active shift linked to stop route so ticket and revenue are tracked in PostgreSQL
+            route = source_stop.routestop_set.first().route if source_stop.routestop_set.exists() else Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         # Generate unique ticket ID
         ticket_id = f"TKT-{shift.route.route_id.split('-')[-1]}-{str(uuid.uuid4().int)[:6]}"
@@ -265,7 +291,19 @@ class TicketingService:
         if not shift:
             shift = Shift.objects.filter(status='Active').first()
         if not shift:
-            return {"status": "error", "message": "No active shift found"}
+            route = Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         created_tickets = []
         duplicate_count = 0
@@ -450,6 +488,80 @@ class AdminRouteManagementService:
             "route_name": route.route_name,
             "stops_created": len(data.get("stops", [])),
             "message": f"Route {route_id} created with {len(data.get('stops', []))} stops.",
+        }
+
+    @staticmethod
+    def update_route(route_id, data):
+        """
+        Updates an existing Route, its stops, and fare rule.
+        """
+        try:
+            route = Route.objects.get(route_id=route_id)
+        except Route.DoesNotExist:
+            return {"status": "error", "message": f"Route {route_id} not found."}
+
+        if "route_name" in data and data["route_name"]:
+            route.route_name = data["route_name"].strip()
+            route.save(update_fields=["route_name"])
+
+        # Update fare rule
+        fare_rule = route.fare_rules.first()
+        base_fare = Decimal(str(data.get("base_fare", fare_rule.base_fare if fare_rule else "10.00")))
+        per_km_rate = Decimal(str(data.get("per_km_rate", fare_rule.per_km_rate if fare_rule else "1.50")))
+        if fare_rule:
+            fare_rule.base_fare = base_fare
+            fare_rule.per_km_rate = per_km_rate
+            fare_rule.save(update_fields=["base_fare", "per_km_rate"])
+        else:
+            FareRule.objects.create(route=route, base_fare=base_fare, per_km_rate=per_km_rate)
+
+        # Update stops sequence if provided
+        if "stops" in data and data["stops"]:
+            RouteStop.objects.filter(route=route).delete()
+            for s in data["stops"]:
+                stop, _ = Stop.objects.get_or_create(
+                    stop_id=s["stop_id"],
+                    defaults={
+                        "stop_name": s["stop_name"],
+                        "gps_location": Point(float(s["longitude"]), float(s["latitude"]), srid=4326),
+                    }
+                )
+                RouteStop.objects.create(
+                    route=route,
+                    stop=stop,
+                    sequence=s["sequence"],
+                    distance_km=float(s["distance_km"])
+                )
+
+        return {
+            "status": "success",
+            "route_id": route.route_id,
+            "route_name": route.route_name,
+            "message": f"Route {route_id} updated successfully.",
+        }
+
+    @staticmethod
+    def delete_route(route_id):
+        """
+        Deletes a Route.
+        Prevents deletion if there are active shifts operating on the route.
+        """
+        try:
+            route = Route.objects.get(route_id=route_id)
+        except Route.DoesNotExist:
+            return {"status": "error", "message": f"Route {route_id} not found."}
+
+        if Shift.objects.filter(route=route, status='Active').exists():
+            return {
+                "status": "error",
+                "message": f"Cannot delete Route {route_id} because an active shift is currently operating on it."
+            }
+
+        route_name = route.route_name
+        route.delete()
+        return {
+            "status": "success",
+            "message": f"Route {route_id} ('{route_name}') and associated stop links deleted successfully."
         }
 
     @staticmethod
@@ -674,7 +786,7 @@ class AdminShiftService:
 
     @staticmethod
     def list_shifts():
-        """Returns all shifts (active + completed) for management view."""
+        """Returns all shifts (active + completed) for management view, including stop progress."""
         shifts = (
             Shift.objects.all()
             .select_related('bus', 'route', 'emp')
@@ -682,6 +794,39 @@ class AdminShiftService:
         )
         result = []
         for s in shifts:
+            route_stops = s.route.route_stops.select_related('stop').order_by('sequence')
+            stops_list = [
+                {
+                    "stop_id": rs.stop.stop_id,
+                    "stop_name": rs.stop.stop_name,
+                    "sequence": rs.sequence,
+                    "distance_km": rs.distance_km,
+                }
+                for rs in route_stops
+            ]
+
+            current_stop_idx = 0
+            if stops_list:
+                latest_loc = BusLocation.objects.filter(shift=s).order_by('-timestamp').first()
+                if latest_loc and latest_loc.current_location:
+                    stop_ids = [st["stop_id"] for st in stops_list]
+                    closest_stop = (
+                        Stop.objects.filter(stop_id__in=stop_ids)
+                        .annotate(dist=Distance('gps_location', latest_loc.current_location))
+                        .order_by('dist')
+                        .first()
+                    )
+                    if closest_stop:
+                        for idx, st in enumerate(stops_list):
+                            if st["stop_id"] == closest_stop.stop_id:
+                                current_stop_idx = idx
+                                break
+
+            total_stops = len(stops_list)
+            progress_pct = 0
+            if total_stops > 1:
+                progress_pct = round((current_stop_idx / (total_stops - 1)) * 100)
+
             result.append({
                 "shift_id": s.shift_id,
                 "status": s.status,
@@ -691,6 +836,11 @@ class AdminShiftService:
                 "conductor_id": s.emp.emp_id,
                 "route_id": s.route.route_id,
                 "bus_id": s.bus.bus_id,
+                "stops": stops_list,
+                "current_stop_index": current_stop_idx,
+                "current_stop_name": stops_list[current_stop_idx]["stop_name"] if stops_list else None,
+                "total_stops": total_stops,
+                "progress_percent": progress_pct,
             })
         return result
 
@@ -894,7 +1044,19 @@ class AdminIncidentService:
         if not shift:
             shift = Shift.objects.filter(status='Active').first()
         if not shift:
-            return {"status": "error", "message": "No active shift found"}
+            route = Route.objects.first()
+            bus = Bus.objects.first()
+            emp = Employee.objects.filter(role='Conductor').first() or Employee.objects.first()
+            if route and bus and emp:
+                shift = Shift.objects.create(
+                    shift_id=shift_id if (shift_id and shift_id not in ("Unassigned Shift", "Standby / Unassigned")) else f"shift-{str(uuid.uuid4().int)[:6]}",
+                    emp=emp,
+                    bus=bus,
+                    route=route,
+                    status='Active'
+                )
+            else:
+                return {"status": "error", "message": "No active shift found"}
 
         lat = data.get('latitude')
         lng = data.get('longitude')

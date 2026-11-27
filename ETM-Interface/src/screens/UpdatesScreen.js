@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { FlatList, StyleSheet, Text, View, Pressable } from "react-native";
+import { FlatList, StyleSheet, Text, View, Pressable, useColorScheme } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { EmptyState } from "../components/EmptyState";
@@ -13,6 +13,9 @@ import { storage } from "../services/storage";
 import { timeLabel } from "../utils/format";
 
 export const UpdatesScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const theme = colors[scheme];
+
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.updates.items);
   const [loading, setLoading] = useState(false);
@@ -50,8 +53,8 @@ export const UpdatesScreen = () => {
 
   return (
     <Screen showBack backTitle="Dashboard" scroll={false}>
-      <Text style={styles.title}>Updates</Text>
-      <Text style={styles.subtitle}>
+      <Text style={[styles.title, { color: theme.text }]}>Updates</Text>
+      <Text style={[styles.subtitle, { color: theme.textMuted }]}>
         Announcements, route changes, admin replies and conductor tasks.
       </Text>
 
@@ -66,11 +69,11 @@ export const UpdatesScreen = () => {
           keyExtractor={(item) => item.id}
           style={styles.list}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={styles.cardTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                  <Text style={styles.cardBody}>{item.body}</Text>
+                  <Text style={[styles.cardTitle, { color: theme.text }]}>{item.title}</Text>
+                  <Text style={[styles.cardBody, { color: theme.textMuted }]}>{item.body}</Text>
                 </View>
                 {item.unread ? <View style={styles.unreadDot} /> : null}
               </View>

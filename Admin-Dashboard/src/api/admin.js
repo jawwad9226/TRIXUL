@@ -35,8 +35,11 @@ export const acknowledgeIncident = (incidentId) =>
 // ── Route & Stop Master Data Management ──────────────────────────────────────
 export const fetchRoutes = () => client.get('/api/v1/admin/routes/')
 export const createRoute = (payload) => client.post('/api/v1/admin/routes/create/', payload)
+export const updateRoute = (routeId, payload) => client.put(`/api/v1/admin/routes/${routeId}/`, payload)
+export const deleteRoute = (routeId) => client.delete(`/api/v1/admin/routes/${routeId}/`)
 export const fetchStops = () => client.get('/api/v1/admin/stops/')
 export const createStop = (payload) => client.post('/api/v1/admin/stops/', payload)
+export const updateStop = (stopId, payload) => client.put(`/api/v1/admin/stops/${stopId}/`, payload)
 
 // ── Dynamic Fare Controls (Stage 3) ──────────────────────────────────────────
 export const fetchFareControls = () => client.get('/api/v1/admin/fare-controls/')

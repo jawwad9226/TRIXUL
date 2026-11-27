@@ -1,7 +1,7 @@
 // File: src/constants/theme.js
 // Purpose: Central color, spacing, radius, shadow, and navigation theme values.
-// Imports: none.
-// Behavior: Visual changes ripple through every component that reads these tokens.
+import { Platform } from "react-native";
+
 export const colors = {
   light: {
     background: "#f4f7fb",
@@ -71,11 +71,16 @@ export const radii = {
 };
 
 export const shadow = {
-  light: {
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
+  light: Platform.select({
+    web: {
+      boxShadow: "0 8px 16px rgba(0, 0, 0, 0.08)",
+    },
+    default: {
+      shadowColor: "#000",
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 4,
+    },
+  }),
 };

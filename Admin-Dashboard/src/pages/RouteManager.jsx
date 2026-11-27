@@ -29,8 +29,19 @@ import {
   MoveRight,
   Layers,
   Sparkles,
+  Pencil,
+  Edit2,
+  X,
 } from 'lucide-react'
-import { fetchRoutes, createRoute, fetchStops, createStop } from '../api/admin'
+import {
+  fetchRoutes,
+  createRoute,
+  updateRoute,
+  deleteRoute,
+  fetchStops,
+  createStop,
+  updateStop,
+} from '../api/admin'
 import PageHeader from '../components/PageHeader'
 import Card from '../components/Card'
 
@@ -128,6 +139,7 @@ export default function RouteManager() {
   })
   const [selectedRouteStops, setSelectedRouteStops] = useState([]) // Array of stop objects in order
   const [creatingRoute, setCreatingRoute] = useState(false)
+  const [editingRouteId, setEditingRouteId] = useState(null)
 
   // Initial Data Load
   const loadData = useCallback(async () => {
@@ -157,21 +169,35 @@ export default function RouteManager() {
       longitude: lngRounded,
       stop_name: '',
       stop_id: '',
+      isEditing: false,
     })
   }
 
-  // Save Clicked Pin to Backend (POST /api/v1/admin/stops/)
+  // Load existing stop for editing (Item 5)
+  const handleEditStop = (stop) => {
+    setDraftPin({
+      stop_id: stop.stop_id,
+      stop_name: stop.stop_name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      isEditing: true,
+    })
+    setActiveTab('builder')
+  }
+
+  // Save Clicked or Edited Pin to Backend (POST /api/v1/admin/stops/)
   const handleSaveDraftStop = async (e) => {
     e.preventDefault()
     if (!draftPin || !draftPin.stop_name.trim()) return
     setSavingStop(true)
     try {
-      const res = await createStop({
+      const payload = {
         stop_name: draftPin.stop_name.trim(),
         stop_id: draftPin.stop_id.trim() || undefined,
-        latitude: draftPin.latitude,
-        longitude: draftPin.longitude,
-      })
+        latitude: parseFloat(draftPin.latitude),
+        longitude: parseFloat(draftPin.longitude),
+      }
+      const res = await createStop(payload)
       const newStop = {
         stop_id: res.data.stop_id,
         stop_name: res.data.stop_name,
@@ -179,12 +205,23 @@ export default function RouteManager() {
         longitude: res.data.longitude,
       }
       setStops((prev) => [...prev.filter((s) => s.stop_id !== newStop.stop_id), newStop])
-      // Automatically append to route builder sequence
-      appendStopToRoute(newStop)
+      
+      // Update stop details in active route chain if present
+      setSelectedRouteStops((prev) =>
+        prev.map((s) => (s.stop_id === newStop.stop_id ? { ...s, ...newStop } : s))
+      )
+
+      if (!draftPin.isEditing) {
+        appendStopToRoute(newStop)
+      }
+
+      const isEdit = draftPin.isEditing
       setDraftPin(null)
       setFeedback({
         type: 'success',
-        text: `Stop "${newStop.stop_name}" pinned and saved to PostGIS. Added to active route!`,
+        text: isEdit
+          ? `Stop "${newStop.stop_name}" details updated successfully.`
+          : `Stop "${newStop.stop_name}" pinned and saved to PostGIS. Added to active route!`,
       })
       setTimeout(() => setFeedback(null), 5000)
     } catch (err) {
@@ -194,6 +231,54 @@ export default function RouteManager() {
       })
     } finally {
       setSavingStop(false)
+    }
+  }
+
+  // Edit Route Handler (Item 6)
+  const handleEditRoute = (route) => {
+    setEditingRouteId(route.route_id)
+    setRouteForm({
+      route_id: route.route_id,
+      route_name: route.route_name,
+      base_fare: route.fare_rule?.base_fare ? String(route.fare_rule.base_fare) : '10.00',
+      per_km_rate: route.fare_rule?.per_km_rate ? String(route.fare_rule.per_km_rate) : '1.50',
+    })
+    setSelectedRouteStops(
+      route.stops.map((s) => ({
+        stop_id: s.stop_id,
+        stop_name: s.stop_name,
+        latitude: s.latitude,
+        longitude: s.longitude,
+        distance_km: s.distance_km,
+      }))
+    )
+    setActiveTab('builder')
+    setFeedback({
+      type: 'success',
+      text: `Route "${route.route_name}" (${route.route_id}) loaded into Visual Builder. Modify stops or fare rules and click "Update Route".`,
+    })
+    setTimeout(() => setFeedback(null), 6000)
+  }
+
+  // Delete Route Handler (Item 6)
+  const handleDeleteRoute = async (e, route) => {
+    e.stopPropagation()
+    if (!window.confirm(`Are you sure you want to permanently delete route "${route.route_name}" (${route.route_id})?`)) {
+      return
+    }
+    try {
+      const res = await deleteRoute(route.route_id)
+      setFeedback({
+        type: 'success',
+        text: res.data?.message || `Route "${route.route_name}" deleted successfully.`,
+      })
+      await loadData()
+      setTimeout(() => setFeedback(null), 5000)
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: err.response?.data?.message || err.message || 'Failed to delete route',
+      })
     }
   }
 
@@ -276,12 +361,23 @@ export default function RouteManager() {
           longitude: s.longitude,
         })),
       }
-      await createRoute(payload)
-      setFeedback({
-        type: 'success',
-        text: `Route "${routeForm.route_name}" successfully deployed with ${selectedRouteStops.length} stops!`,
-      })
+
+      if (editingRouteId) {
+        await updateRoute(editingRouteId, payload)
+        setFeedback({
+          type: 'success',
+          text: `Route "${routeForm.route_name}" (${editingRouteId}) successfully updated with ${selectedRouteStops.length} stops!`,
+        })
+      } else {
+        await createRoute(payload)
+        setFeedback({
+          type: 'success',
+          text: `Route "${routeForm.route_name}" successfully deployed with ${selectedRouteStops.length} stops!`,
+        })
+      }
+
       // Reset form
+      setEditingRouteId(null)
       setRouteForm({
         route_id: '',
         route_name: '',
@@ -294,7 +390,7 @@ export default function RouteManager() {
     } catch (err) {
       setFeedback({
         type: 'error',
-        text: err.response?.data?.message || err.message || 'Failed to deploy route',
+        text: err.response?.data?.message || err.message || 'Failed to save route',
       })
     } finally {
       setCreatingRoute(false)
@@ -427,19 +523,29 @@ export default function RouteManager() {
                       icon={icon}
                     >
                       <Popup>
-                        <div className="text-slate-100 text-xs space-y-1.5 p-1 min-w-[170px]">
+                        <div className="text-slate-100 text-xs space-y-1.5 p-1 min-w-[190px]">
                           <p className="font-bold text-white text-sm">{stop.stop_name}</p>
                           <p className="font-mono text-[10px] text-slate-400">{stop.stop_id}</p>
                           <p className="text-[10px] text-slate-400">
                             GPS: {stop.latitude.toFixed(4)}, {stop.longitude.toFixed(4)}
                           </p>
-                          <button
-                            onClick={() => appendStopToRoute(stop)}
-                            className="w-full mt-1 bg-trixul-accent hover:bg-blue-600 text-white font-semibold text-[11px] py-1 px-2 rounded transition flex items-center justify-center gap-1"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Add to Route Sequence</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <button
+                              onClick={() => appendStopToRoute(stop)}
+                              className="flex-1 bg-trixul-accent hover:bg-blue-600 text-white font-semibold text-[11px] py-1.5 px-2 rounded transition flex items-center justify-center gap-1 shadow"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add to Route</span>
+                            </button>
+                            <button
+                              onClick={() => handleEditStop(stop)}
+                              title="Edit stop name and GPS coordinates"
+                              className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-semibold py-1.5 px-2.5 rounded transition flex items-center justify-center gap-1"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                          </div>
                         </div>
                       </Popup>
                     </Marker>
@@ -472,25 +578,54 @@ export default function RouteManager() {
           {/* Builder Sidebar: Pin Register + Route Linker (5 Cols) */}
           <div className="lg:col-span-5 flex flex-col gap-4 overflow-y-auto pr-1">
             
-            {/* 1. Pin Registration Box (Active when user clicks map) */}
+            {/* 1. Pin Registration Box (Active when user clicks map or enters coords) */}
             <Card className="border-amber-500/40 bg-slate-900/80">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-white text-xs flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Pin to Stop Registration</span>
+                  <span>{draftPin?.isEditing ? `Edit Stop: ${draftPin.stop_id}` : 'Pin to Stop Registration'}</span>
                 </h3>
                 {draftPin && (
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                    GPS Fix Acquired
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                    draftPin.isEditing
+                      ? 'text-blue-400 bg-blue-400/10 border-blue-400/20'
+                      : 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+                  }`}>
+                    {draftPin.isEditing ? 'Editing Mode' : 'GPS Fix Acquired'}
                   </span>
                 )}
               </div>
 
               {draftPin ? (
                 <form onSubmit={handleSaveDraftStop} className="space-y-3">
-                  <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800 text-[11px] space-y-1 font-mono">
-                    <p className="text-slate-400">Latitude: <strong className="text-white">{draftPin.latitude}</strong></p>
-                    <p className="text-slate-400">Longitude: <strong className="text-white">{draftPin.longitude}</strong></p>
+                  {/* Manual Coordinate Editing (Item 4) */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-950/70 p-2.5 rounded-lg border border-slate-800 text-[11px]">
+                    <div>
+                      <label className="block text-slate-400 text-[10px] mb-1 font-mono">
+                        Latitude <span className="text-amber-400">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={draftPin.latitude}
+                        onChange={(e) => setDraftPin({ ...draftPin, latitude: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[10px] mb-1 font-mono">
+                        Longitude <span className="text-amber-400">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={draftPin.longitude}
+                        onChange={(e) => setDraftPin({ ...draftPin, longitude: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -509,14 +644,15 @@ export default function RouteManager() {
 
                   <div>
                     <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                      Stop ID (Optional)
+                      Stop ID {draftPin.isEditing ? '(Read-only)' : '(Optional)'}
                     </label>
                     <input
                       type="text"
+                      readOnly={draftPin.isEditing}
                       placeholder="e.g. STP-MLK (Auto-generated if empty)"
                       value={draftPin.stop_id}
                       onChange={(e) => setDraftPin({ ...draftPin, stop_id: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 placeholder-slate-600 font-mono"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 placeholder-slate-600 font-mono disabled:opacity-60"
                     />
                   </div>
 
@@ -526,21 +662,39 @@ export default function RouteManager() {
                       onClick={() => setDraftPin(null)}
                       className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs py-1.5 rounded-lg transition"
                     >
-                      Clear Pin
+                      Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={savingStop}
                       className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-1.5 rounded-lg transition shadow disabled:opacity-50"
                     >
-                      {savingStop ? 'Saving...' : 'Register Stop (POST)'}
+                      {savingStop ? 'Saving...' : draftPin.isEditing ? 'Update Stop' : 'Register Stop (POST)'}
                     </button>
                   </div>
                 </form>
               ) : (
-                <p className="text-xs text-slate-400 italic py-2">
-                  👉 Click any location on the map to automatically extract coordinates and register a new stop.
-                </p>
+                <div className="py-2 space-y-2">
+                  <p className="text-xs text-slate-400 italic">
+                    👉 Click any location on the map to automatically extract coordinates and register a new stop.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraftPin({
+                        latitude: 20.7002,
+                        longitude: 77.0022,
+                        stop_name: '',
+                        stop_id: '',
+                        isEditing: false,
+                      })
+                    }
+                    className="w-full text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 py-2 px-3 rounded-lg transition flex items-center justify-center gap-1.5"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Or Enter Coordinates Manually</span>
+                  </button>
+                </div>
               )}
             </Card>
 
@@ -603,18 +757,39 @@ export default function RouteManager() {
 
                 {/* Route Configuration Form */}
                 <form onSubmit={handleDeployRoute} className="space-y-3">
+                  {editingRouteId && (
+                    <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-xs text-amber-300">
+                      <span className="font-semibold">
+                        Editing Route: <strong className="font-mono text-white">{editingRouteId}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRouteId(null)
+                          setRouteForm({ route_id: '', route_name: '', base_fare: '10.00', per_km_rate: '1.50' })
+                          setSelectedRouteStops([])
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>Cancel Edit</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[10px] font-medium text-slate-400 mb-1">
-                        Route ID <span className="text-red-400">*</span>
+                        Route ID {editingRouteId ? '(Read-only)' : <span className="text-red-400">*</span>}
                       </label>
                       <input
                         type="text"
                         required
+                        readOnly={!!editingRouteId}
                         placeholder="e.g. route-106"
                         value={routeForm.route_id}
                         onChange={(e) => setRouteForm({ ...routeForm, route_id: e.target.value })}
-                        className="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono placeholder-slate-600"
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono placeholder-slate-600 disabled:opacity-60"
                       />
                     </div>
                     <div>
@@ -667,7 +842,9 @@ export default function RouteManager() {
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>
                       {creatingRoute
-                        ? 'Deploying Network Route...'
+                        ? 'Saving Network Route...'
+                        : editingRouteId
+                        ? `Update Route (${selectedRouteStops.length} Connected Stops)`
                         : `Deploy Route (${selectedRouteStops.length} Connected Stops)`}
                     </span>
                   </button>
@@ -706,18 +883,49 @@ export default function RouteManager() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-4 flex-shrink-0 text-xs">
-                      <span className="text-slate-400">{route.stops.length} stops</span>
+                    <div className="flex items-center gap-2.5 flex-shrink-0 text-xs">
+                      <span className="text-slate-400 hidden md:inline">{route.stops.length} stops</span>
                       {route.fare_rule?.base_fare && (
                         <span className="text-emerald-400 font-mono font-medium hidden sm:block">
                           ₹{route.fare_rule.base_fare} base + ₹{route.fare_rule.per_km_rate}/km
                         </span>
                       )}
-                      {isExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-slate-400" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                      )}
+
+                      {/* Edit Route Button (Item 6) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditRoute(route)
+                        }}
+                        title="Edit route stops and fare rules in Visual Builder"
+                        className="flex items-center gap-1 text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2.5 py-1 rounded transition"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+
+                      {/* Delete Route Button (Item 6) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteRoute(e, route)
+                        }}
+                        title="Permanently delete route from database"
+                        className="flex items-center gap-1 text-[11px] font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded transition"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete</span>
+                      </button>
+
+                      <div className="p-1 hover:bg-slate-700 rounded text-slate-400">
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
+                      </div>
                     </div>
                   </button>
 

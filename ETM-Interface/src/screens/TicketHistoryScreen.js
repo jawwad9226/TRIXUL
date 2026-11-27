@@ -1,7 +1,7 @@
 // File: src/screens/TicketHistoryScreen.js
 // Purpose: Reads locally saved tickets and displays end-of-shift cash & UPI reconciliation.
 import React, { useEffect, useState } from "react";
-import { Alert, FlatList, StyleSheet, Text, View, Pressable } from "react-native";
+import { Alert, FlatList, StyleSheet, Text, View, Pressable, useColorScheme } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { EmptyState } from "../components/EmptyState";
@@ -13,12 +13,17 @@ import { useAppSelector, useAppDispatch } from "../store/hooks";
 import { hydrateHistory } from "../store/slices/ticketSlice";
 import { TicketTile } from "../components/TicketTile";
 import { currency } from "../utils/format";
+import { PrintedTicketModal } from "../components/PrintedTicketModal";
 
 export const TicketHistoryScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const isDark = scheme === "dark";
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.conductor.profile);
+  const route = useAppSelector((state) => state.route.currentRoute);
   const [history, setHistory] = useState([]);
   const [syncing, setSyncing] = useState(false);
+  const [reprintModalTicket, setReprintModalTicket] = useState(null);
 
   const loadReconciliationData = async () => {
     setSyncing(true);
@@ -68,17 +73,25 @@ export const TicketHistoryScreen = () => {
   const upiRevenue = totalRevenue - cashRevenue;
 
   const handleReprint = (ticket) => {
-    Alert.alert(
-      "Duplicate Slip Generated",
-      `Ticket #${ticket.ticketId}\nAmount: ${currency(ticket.fare)}\nRoute: ${ticket.boardingStop} → ${ticket.destinationStop}\nSlip reprinted.`
-    );
+    setReprintModalTicket({
+      ...ticket,
+      ticket_id: ticket.ticketId,
+      source_stop: ticket.boardingStop,
+      dest_stop: ticket.destinationStop,
+      total_fare: ticket.fare,
+      bus_number: profile?.busNumber || "MH-30-AB-1234",
+      shift_id: profile?.shiftId || "Active Shift",
+      conductor_name: profile?.conductorName || "Active Conductor",
+      conductor_id: profile?.conductorId || "cond-1001",
+      route_name: route?.route_name || "MSRTC State Route",
+    });
   };
 
   return (
     <Screen showBack backTitle="Dashboard">
       <View style={styles.header}>
-        <Text style={styles.title}>Shift Summary & History</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: isDark ? "#f8fafc" : colors.light.text }]}>Shift Summary & History</Text>
+        <Text style={[styles.subtitle, { color: isDark ? "#94a3b8" : colors.light.textMuted }]}>
           Cash and UPI reconciliation for depot checkout and ticket reprint
         </Text>
       </View>
@@ -119,7 +132,7 @@ export const TicketHistoryScreen = () => {
       </View>
 
       {/* Ticket Logs List */}
-      <Text style={styles.sectionHeader}>Issued Ticket Slips</Text>
+      <Text style={[styles.sectionHeader, { color: isDark ? "#f8fafc" : colors.light.text }]}>Issued Ticket Slips</Text>
 
       {history.length ? (
         <FlatList
@@ -137,6 +150,14 @@ export const TicketHistoryScreen = () => {
           subtitle="Tickets booked on this shift will appear here with instant reprint and audit capability."
         />
       )}
+
+      {/* Thermal Ticket Slip Modal (Item 4) */}
+      <PrintedTicketModal
+        visible={Boolean(reprintModalTicket)}
+        ticket={reprintModalTicket}
+        isReprint={true}
+        onClose={() => setReprintModalTicket(null)}
+      />
     </Screen>
   );
 };

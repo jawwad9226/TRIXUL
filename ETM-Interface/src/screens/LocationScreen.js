@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { AppState, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 
@@ -11,6 +11,9 @@ import { updateBusAssignment } from "../store/slices/conductorSlice";
 import { sendHeartbeat } from "../services/api";
 
 export const LocationScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const theme = colors[scheme];
+
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.conductor.profile);
   const route = useAppSelector((state) => state.route.route);
@@ -113,37 +116,38 @@ export const LocationScreen = () => {
   }, [dispatch, profile]);
 
   return (
-    <Screen>
-      <Text style={styles.title}>Current Location</Text>
-      <Text style={styles.subtitle}>
+    <Screen showBack backTitle="Dashboard">
+      <Text style={[styles.title, { color: theme.text }]}>Current Location</Text>
+      <Text style={[styles.subtitle, { color: theme.textMuted }]}>
         Live GPS reporting to the backend every 30 seconds.
       </Text>
 
       {/* Route Stop Visualization */}
-      <View style={styles.mapCard}>
+      <View style={[styles.mapCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
         <View style={styles.mapHeader}>
-          <Text style={styles.mapTitle}>Route stops</Text>
+          <Text style={[styles.mapTitle, { color: theme.text }]}>Route stops</Text>
           <MaterialCommunityIcons
             name="map-marker-path"
             size={22}
-            color={colors.light.primary}
+            color={theme.primary}
           />
         </View>
         <View style={styles.routeTrack}>
           {stops.length === 0 ? (
-            <Text style={styles.emptyText}>No stops loaded — run Initializer first.</Text>
+            <Text style={[styles.emptyText, { color: theme.textMuted }]}>No stops loaded — run Initializer first.</Text>
           ) : (
             stops.map((stop, index) => (
               <View key={stop.stop_id || stop.id || index} style={styles.stopRow}>
                 <View
                   style={[
                     styles.dot,
+                    { backgroundColor: theme.border },
                     stop.stop_name === status?.current_stop && styles.dotActive,
                   ]}
                 />
                 <View style={styles.stopInfo}>
-                  <Text style={styles.stopName}>{stop.name || stop.stop_name}</Text>
-                  <Text style={styles.stopDistance}>Stop {stop.index ?? index + 1}</Text>
+                  <Text style={[styles.stopName, { color: theme.text }]}>{stop.name || stop.stop_name}</Text>
+                  <Text style={[styles.stopDistance, { color: theme.textMuted }]}>Stop {stop.index ?? index + 1}</Text>
                 </View>
               </View>
             ))
@@ -152,25 +156,25 @@ export const LocationScreen = () => {
       </View>
 
       {/* Live GPS Data Card */}
-      <View style={styles.card}>
-        <Text style={styles.label}>Current GPS location</Text>
+      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
+        <Text style={[styles.label, { color: theme.text }]}>Current GPS location</Text>
         {lastGps ? (
-          <Text style={styles.coords}>
+          <Text style={[styles.coords, { color: theme.primary }]}>
             {lastGps.latitude.toFixed(5)}, {lastGps.longitude.toFixed(5)}
           </Text>
         ) : (
-          <Text style={styles.coords}>Awaiting GPS fix...</Text>
+          <Text style={[styles.coords, { color: theme.textMuted }]}>Awaiting GPS fix...</Text>
         )}
-        <Text style={styles.meta}>
+        <Text style={[styles.meta, { color: theme.text }]}>
           Current stop: {status?.current_stop ?? "—"}
         </Text>
-        <Text style={styles.meta}>
+        <Text style={[styles.meta, { color: theme.text }]}>
           Next stop: {status?.next_stop ?? "—"}
         </Text>
-        <Text style={styles.meta}>
+        <Text style={[styles.meta, { color: theme.text }]}>
           ETA: {status?.eta_minutes != null ? `${status.eta_minutes} min` : "—"}
         </Text>
-        <Text style={styles.meta}>Sync: {syncStatus}</Text>
+        <Text style={[styles.meta, { color: theme.text }]}>Sync: {syncStatus}</Text>
 
         {permissionMessage ? (
           <Text style={[styles.meta, { color: colors.light.danger ?? "#dc2626" }]}>

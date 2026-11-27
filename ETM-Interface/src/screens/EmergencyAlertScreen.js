@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Alert, StyleSheet, Text, TextInput, View, Animated, PanResponder } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, View, Animated, PanResponder, useColorScheme, Platform } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import * as Location from "expo-location";
@@ -69,6 +69,9 @@ function SlideToSOS({ onConfirm, disabled }) {
 
 
 export const EmergencyAlertScreen = () => {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const theme = colors[scheme];
+
   const dispatch = useAppDispatch();
   const conductorProfile = useAppSelector((state) => state.conductor.profile);
   const submitting = useAppSelector((state) => state.alerts.submitting);
@@ -168,8 +171,8 @@ export const EmergencyAlertScreen = () => {
     <Screen showBack backTitle="Dashboard">
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Emergency Alert</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: theme.text }]}>Emergency Alert</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
             Submit accident, breakdown, blockage or custom support requests in
             real time.
           </Text>
@@ -177,12 +180,17 @@ export const EmergencyAlertScreen = () => {
         <StatusBadge label="REAL-TIME" tone="danger" />
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Alert Type</Text>
-        <View style={styles.selectBox}>
+      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
+        <Text style={[styles.label, { color: theme.text }]}>Alert Type</Text>
+        <View style={[styles.selectBox, { backgroundColor: scheme === "dark" ? "#1e293b" : "#f8fafc", borderColor: theme.border, borderWidth: 1 }]}>
           <Picker
             selectedValue={alertType}
             onValueChange={(value) => setAlertType(String(value))}
+            style={{
+              color: scheme === "dark" ? "#f8fafc" : "#0f172a",
+              backgroundColor: scheme === "dark" ? "#1e293b" : "#f8fafc",
+            }}
+            dropdownIconColor={scheme === "dark" ? "#f8fafc" : "#0f172a"}
           >
             {[
               "Accident",
@@ -191,28 +199,36 @@ export const EmergencyAlertScreen = () => {
               "Emergency Support",
               "Custom",
             ].map((type) => (
-              <Picker.Item key={type} label={type} value={type} />
+              <Picker.Item
+                key={type}
+                label={type}
+                value={type}
+                style={{
+                  backgroundColor: scheme === "dark" ? "#1e293b" : "#ffffff",
+                  color: scheme === "dark" ? "#f8fafc" : "#0f172a",
+                }}
+              />
             ))}
           </Picker>
         </View>
 
-        <Text style={styles.label}>Message</Text>
+        <Text style={[styles.label, { color: theme.text }]}>Message</Text>
         <TextInput
           value={message}
           onChangeText={setMessage}
           placeholder="Describe the emergency or request"
-          placeholderTextColor={colors.light.textMuted}
+          placeholderTextColor={theme.textMuted}
           multiline
-          style={styles.input}
+          style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
         />
 
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { backgroundColor: scheme === "dark" ? "#10233b" : "#eef4ff" }]}>
           <MaterialCommunityIcons
             name="map-marker-radius"
             size={20}
-            color={colors.light.primary}
+            color={theme.primary}
           />
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: theme.text }]}>
             Conductor: {conductorProfile.conductorName ?? "—"}
             {conductorProfile.busId ? ` • Bus ${conductorProfile.busId}` : ""}
           </Text>
@@ -309,11 +325,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#ef4444",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 5,
+    ...Platform.select({
+      web: { boxShadow: "0 2px 8px rgba(0, 0, 0, 0.35)" },
+      default: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4, elevation: 5 },
+    }),
   },
   sliderHelperText: {
     color: colors.light.textMuted,

@@ -55,15 +55,32 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle 401 Unauthorized
+// Response Interceptor: Handle 401 Unauthorized with silent refresh
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response && error.response.status === 401) {
-      // Clear token and handle unauthorized access (e.g., trigger logout)
+    const originalRequest = error.config;
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = await getToken('refresh_token');
+        if (refreshToken) {
+          const res = await axios.post(`${API_URL}/api/v1/auth/refresh/`, {
+            refresh: refreshToken,
+          });
+          const newAccess = res.data?.access || res.data?.token;
+          if (newAccess) {
+            await setToken('jwt_token', newAccess);
+            originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+            return apiClient(originalRequest);
+          }
+        }
+      } catch (refreshErr) {
+        console.warn('Session expired. Silent refresh failed.');
+      }
+      // If refresh fails, clear tokens
       await deleteToken('jwt_token');
-      console.warn('Unauthorized access. Token cleared.');
-      // NOTE: You can dispatch a Redux action or navigation reset here if needed.
+      await deleteToken('refresh_token');
     }
     return Promise.reject(error);
   }
@@ -77,10 +94,14 @@ apiClient.interceptors.response.use(
  */
 export const login = async (emp_id) => {
   const response = await apiClient.post('/api/v1/auth/login/', { emp_id });
-  const token = response.data.token || response.data.access; // Depending on your backend's exact response structure
+  const token = response.data.token || response.data.access || response.data.tokens?.access;
+  const refreshToken = response.data.refresh || response.data.tokens?.refresh;
   
   if (token) {
     await setToken('jwt_token', token);
+  }
+  if (refreshToken) {
+    await setToken('refresh_token', refreshToken);
   }
   return response.data;
 };
@@ -193,6 +214,23 @@ export const fetchActiveIncidents = async () => {
  */
 export const fetchFareControls = async () => {
   const response = await apiClient.get('/api/v1/admin/fare-controls/');
+  return response.data;
+};
+
+/**
+ * Dispatch Options Lookup (Buses & Routes)
+ */
+export const fetchDispatchOptions = async () => {
+  const response = await apiClient.get('/api/v1/admin/dispatch-options/');
+  return response.data;
+};
+
+/**
+ * Self-Dispatch Shift (Ad-Hoc activation when starting directly on ETM)
+ * Creates a real Active shift in PostgreSQL so it is immediately trackable on Admin Dashboard
+ */
+export const selfDispatchShift = async ({ emp_id, bus_id, route_id }) => {
+  const response = await apiClient.post('/api/v1/admin/shifts/', { emp_id, bus_id, route_id });
   return response.data;
 };
 
