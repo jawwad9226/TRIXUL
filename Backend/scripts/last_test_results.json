@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-10T20:25:27.769452+00:00",
+  "timestamp": "2026-11-27T15:00:03.487308+00:00",
   "total": 25,
   "passed": 25,
   "failed": 0,
@@ -11,8 +11,8 @@
         "passed": true,
         "status_code": 200,
         "data": {
-          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzk0Mzg1NTI3LCJpYXQiOjE3OTQzNDIzMjcsImp0aSI6IjllNmFlZjA4ZmZkMDQ0ZWM5MWRjY2Y0N2VkYTFjMzYxIiwiZW1wX2lkIjoiY29uZC0xMDAxIiwidXNlcl9pZCI6ImNvbmQtMTAwMSJ9.RPUnC2q20kjsdDdqX-RV105pqT_VHGriv5HeXg5T3BE",
-          "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc5NDk0NzEyNywiaWF0IjoxNzk0MzQyMzI3LCJqdGkiOiIzNTU5ODRhZGNkYjg0NjcxOTJjZDE3NzFlMzQ1NTc3NiIsImVtcF9pZCI6ImNvbmQtMTAwMSIsInVzZXJfaWQiOiJjb25kLTEwMDEifQ.hhzgYGhJrDxjJfDT2oHMUevbybZL8l6SO6WwBJRmPpU",
+          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzk1ODM0NzcxLCJpYXQiOjE3OTU3OTE1NzEsImp0aSI6Ijg4YWY3YzEzNzk5NTQ5ODQ4OTE5NDFlMDczNjdhYzNmIiwiZW1wX2lkIjoiY29uZC0xMDAxIiwidXNlcl9pZCI6ImNvbmQtMTAwMSJ9.T_2n0zqbVJ9p14MjZddS27lJvicSJDHgwx-XdQUb7Os",
+          "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc5NjM5NjM3MSwiaWF0IjoxNzk1NzkxNTcxLCJqdGkiOiIxZjMzMjc4NTc2MDk0NWU4OWVjODA4NGY3NmNlZGZiNyIsImVtcF9pZCI6ImNvbmQtMTAwMSIsInVzZXJfaWQiOiJjb25kLTEwMDEifQ.GFgsSABzJPHnnQYC4cCjQojOYCetLk69zrgxX2ZeLgs",
           "employee": {
             "id": "cond-1001",
             "emp_id": "cond-1001",
@@ -20,11 +20,11 @@
             "role": "Conductor"
           },
           "shift": {
-            "shift_id": "shift-783964",
+            "shift_id": "shift-001",
             "bus_id": "bus-101",
             "bus_number": "MH-30-AB-1234",
-            "route_id": "route-101",
-            "route_name": "Akola - Shegaon Shuttle Express"
+            "route_id": "route-102",
+            "route_name": "Akola - Pune (Via Bhusawal)"
           }
         }
       }
@@ -58,13 +58,13 @@
           "shift_id": "shift-001",
           "bus_id": "bus-101",
           "bus_number": "MH-30-AB-1234",
-          "shift_status": "Completed",
-          "current_stop": "Akola Central Bus Stand",
-          "next_stop": "Shegaon",
+          "shift_status": "Active",
+          "current_stop": "Akola Bus Stand",
+          "next_stop": "Shegaon Bus Stand",
           "eta_minutes": 56,
           "condition": "Moving",
           "speed": 45.5,
-          "passengers_count": 92,
+          "passengers_count": 12,
           "processed": true
         }
       }
@@ -75,7 +75,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "ticket_id": "TKT-102-329202"
+        "ticket_id": "TKT-102-159086"
       }
     },
     {
@@ -84,7 +84,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "ticket_id": "TKT-102-178010"
+        "ticket_id": "TKT-102-261511"
       }
     },
     {
@@ -102,8 +102,8 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "total_tickets": 65,
-        "total_revenue": 8249.25
+        "total_tickets": 12,
+        "total_revenue": 1365.0
       }
     },
     {
@@ -112,7 +112,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "incident_id": "INC-33224225"
+        "incident_id": "INC-33668314"
       }
     },
     {
@@ -121,7 +121,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "fleet_count": 1,
+        "fleet_count": 3,
         "ai_alerts_count": 2
       }
     },
@@ -139,10 +139,10 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "shift_id": "shift-267450",
+        "shift_id": "shift-104496",
         "error": {
           "status": "success",
-          "shift_id": "shift-267450",
+          "shift_id": "shift-104496",
           "conductor": "Amit Shirsat",
           "bus_number": "MH-30-BK-7777",
           "route": "Akola - Khamgaon Express",
@@ -156,7 +156,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "message": "Bus dynamically swapped from MH-30-BK-7777 to MH-12-XY-9876 for shift shift-267450."
+        "message": "Bus dynamically swapped from MH-30-BK-7777 to MH-12-XY-9876 for shift shift-104496."
       }
     },
     {
@@ -173,7 +173,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "shifts_count": 26
+        "shifts_count": 6
       }
     },
     {
@@ -182,9 +182,9 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "total_revenue": 16915.25,
-        "cash_amount": 11962.75,
-        "upi_amount": 4952.5
+        "total_revenue": 1365.0,
+        "cash_amount": 510.0,
+        "upi_amount": 855.0
       }
     },
     {
@@ -193,7 +193,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "incidents_count": 20
+        "incidents_count": 3
       }
     },
     {
@@ -229,7 +229,7 @@
       "result": {
         "passed": true,
         "status_code": 201,
-        "route_id": "route-test-006b6dac"
+        "route_id": "route-test-858aa69c"
       }
     },
     {
@@ -238,7 +238,7 @@
       "result": {
         "passed": true,
         "status_code": 200,
-        "routes_count": 24
+        "routes_count": 8
       }
     },
     {
