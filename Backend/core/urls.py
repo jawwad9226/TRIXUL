@@ -7,6 +7,9 @@ from .views import (
     AdminDispatchOptionsView, AdminIncidentAcknowledgeView, AdminShiftReassignBusView,
     AdminRouteListView, AdminRouteCreateView, AdminRouteDetailView, AdminStopListView, AdminStopDetailView,
     BatchTicketSyncView, ShiftTicketSummaryView, AdminFareControlView,
+    CsrfTokenView, OtpRequestView, OtpVerifyView, AuthSessionView, LogoutView,
+    PublicRouteListView, PublicRouteDetailView, PublicStopListView,
+    PublicLiveBusListView, PublicBusEtaView,
 )
 
 urlpatterns = [
@@ -38,4 +41,16 @@ urlpatterns = [
     path('api/v1/admin/routes/<str:route_id>/', AdminRouteDetailView.as_view(), name='admin_route_detail'),
     path('api/v1/admin/stops/', AdminStopListView.as_view(), name='admin_stops_list'),
     path('api/v1/admin/stops/<str:stop_id>/', AdminStopDetailView.as_view(), name='admin_stop_detail'),
+
+    # ── Public Commuter Platform (Stage 4: Swaym Yatri) ───────────────────────
+    path('api/v1/public/auth/csrf/', CsrfTokenView.as_view(), name='public_auth_csrf'),
+    path('api/v1/public/auth/otp/request/', OtpRequestView.as_view(), name='public_auth_otp_request'),
+    path('api/v1/public/auth/otp/verify/', OtpVerifyView.as_view(), name='public_auth_otp_verify'),
+    path('api/v1/public/auth/session/', AuthSessionView.as_view(), name='public_auth_session'),
+    path('api/v1/public/auth/logout/', LogoutView.as_view(), name='public_auth_logout'),
+    path('api/v1/public/routes/', PublicRouteListView.as_view(), name='public_routes'),
+    path('api/v1/public/routes/<str:route_id>/', PublicRouteDetailView.as_view(), name='public_route_detail'),
+    path('api/v1/public/stops/', PublicStopListView.as_view(), name='public_stops'),
+    path('api/v1/public/buses/live/', PublicLiveBusListView.as_view(), name='public_live_buses'),
+    path('api/v1/public/buses/<str:bus_id>/eta/', PublicBusEtaView.as_view(), name='public_bus_eta'),
 ]

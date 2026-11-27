@@ -27,6 +27,8 @@ local_settings.py
 # --- Node / Expo / React Native ---
 node_modules/
 .expo/
+.next/
+.vite/
 dist/
 build/
 .husky/
