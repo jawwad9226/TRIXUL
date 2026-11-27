@@ -2,6 +2,8 @@
 
 The high-density web command center for depot managers and fleet controllers to monitor live public transit telemetry, dispatch duty shifts, track real-time revenue reconciliation, and triage conductor emergency incidents.
 
+> **Security warning:** The 2026-11-27 review found that the main Django admin and operational APIs do not enforce authentication/authorization. A JWT interceptor in this frontend does not protect server endpoints. Keep this dashboard/backend on a trusted local development environment until the server-side findings in [`testing.md`](../testing.md) are fixed.
+
 ---
 
 ## 🛠️ Architecture & Tech Stack

@@ -10,7 +10,7 @@
   [![React](https://img.shields.io/badge/React-18.3-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
   [![React Native](https://img.shields.io/badge/React_Native-Expo_54-000020.svg?logo=expo&logoColor=white)](https://expo.dev/)
   [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-  [![Status](https://img.shields.io/badge/Stages_1--3-100%25_Complete-success.svg)](#-platform-roadmap)
+  [![Status](https://img.shields.io/badge/Stages_1--3-Feature_Complete-yellow.svg)](#-platform-roadmap)
 </div>
 
 ---
@@ -63,8 +63,8 @@ TRIXUL/
 
 ## ⚡ Core Platform Capabilities
 
-### 1. Zero-Mock Data Integrity
-All analytics, financial totals, and live statuses pull from real-time PostgreSQL queries. Every ticket issued directly updates the route passenger volume, driver cash/UPI audit logs, and global command center metrics.
+### 1. Operational Data and Prototype Boundaries
+The main Django backend is intended to source operational records from PostgreSQL. The separate Swayam Yatri commuter prototype currently uses static demo fixtures for routes, buses, fares, and ETAs; its polling and timestamps do not represent live telemetry. Do not treat demo values as operational data.
 
 ### 2. High-Speed PostGIS Telemetry & Dynamic ETAs
 Conductor terminals broadcast 10-second GPS telemetry (`latitude`, `longitude`, `speed`). The backend uses PostGIS spatial functions (`Distance()`, `ST_Distance_Sphere`) to match the bus to its route stop sequence, calculate the next stop, and compute dynamic arrival times.
@@ -87,13 +87,17 @@ Depot managers can push instantaneous off-peak midday discounts (e.g., 10% off) 
 
 | Stage | Focus Area | Status | Key Deliverables |
 | :---: | :--- | :---: | :--- |
-| **Stage 1 & 2** | **ETM Node & Central Brain** | ✅ **100% Complete** | Django/PostGIS schema, Conductor UI, thumb-steppers, GPS heartbeat, ticket issue, offline batch ingestion, shift closure. |
-| **Stage 3** | **Admin Command Center** | ✅ **100% Complete** | React 18 HUD, live Leaflet radar, 45-pax route saturation alerts, 1-click surge deploy, mid-shift bus swap, incident state machine, dynamic fare control. |
-| **Stage 4** | **Public Passenger Platform** | 🔄 *Next Sprint* | Commuter React Native app, live map bus tracking, crowd saturation badges (Green/Yellow/Red), digital QR boarding passes. |
+| **Stage 1 & 2** | **ETM Node & Central Brain** | ⚠️ **Feature Complete; Security Work Open** | Django/PostGIS schema, Conductor UI, GPS heartbeat, ticketing, offline batch ingestion, and shift closure. |
+| **Stage 3** | **Admin Command Center** | ⚠️ **Feature Complete; Security Work Open** | Admin dashboard features are implemented, but backend access-control findings remain; see [`testing.md`](./testing.md). |
+| **Stage 4A** | **Swayam Yatri Commuter Prototype** | 🔄 **In Progress** | Next.js and Expo clients provide route search, demo bus positions/ETAs, a stop timeline, and development-only phone OTP. No live GPS, official timetable, geographic map, or crowd-sense data is currently provided. QR tickets and Lost & Found are out of scope for this MVP. |
 | **Stage 5** | **AI & Predictive Optimization** | 📋 *Backlog* | XGBoost route volume forecasting 24-48h in advance, Origin-Destination (O/D) matrix reconstruction, traffic-aware LSTM arrival models. |
 | **Stage 6** | **Cloud & Hardware Integration** | 📋 *Backlog* | Production cloud migration, ESC/POS Bluetooth thermal receipt printers, NFC/RFID contactless tap-to-pay smart card scanners. |
 
 ---
+
+## Security Status
+
+The read-only review dated 2026-11-27 identified unresolved access-control and transport-security findings in the main Django/Express/ETM paths. Swayam Yatri's development-only OTP flow had no actionable finding in that review, but its transit data remains demo-only. The project is not cleared for production or untrusted-network deployment; see [`testing.md`](./testing.md) for evidence, scope, and limitations.
 
 ## 🏁 Getting Started
 
@@ -119,7 +123,7 @@ python manage.py migrate
 python manage.py seed_trixul
 
 # Start Django API server
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver 127.0.0.1:8000
 ```
 
 > **Run Test Suite:** Verify all 23 API endpoints anytime with:

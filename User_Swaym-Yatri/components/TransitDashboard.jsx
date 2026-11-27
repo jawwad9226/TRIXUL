@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api"
 import RouteProgress from "@/components/RouteProgress"
 
 function formatUpdated(value) {
-  if (!value) return "No location update"
+  if (!value) return "Not checked yet"
   return new Intl.DateTimeFormat("en-IN", {
     hour: "numeric",
     minute: "2-digit",
@@ -22,6 +22,61 @@ function DataPill({ source }) {
   )
 }
 
+function getJourneyProgress(bus, routeStops, boardingStopId, destinationStopId) {
+  const boardingStop = routeStops.find((stop) => stop.stop_id === boardingStopId) || routeStops[0]
+  const destinationStop = routeStops.find((stop) => stop.stop_id === destinationStopId)
+    || routeStops[routeStops.length - 1]
+  const currentIndex = routeStops.findIndex((stop) => stop.stop_id === bus?.current_stop_id)
+  const boardingIndex = routeStops.findIndex((stop) => stop.stop_id === boardingStop?.stop_id)
+  const destinationIndex = routeStops.findIndex((stop) => stop.stop_id === destinationStop?.stop_id)
+
+  if (
+    currentIndex < 0
+    || boardingIndex < 0
+    || destinationIndex < boardingIndex
+  ) {
+    return { state: "unknown", label: "Route position unavailable", targetStopId: null }
+  }
+  if (currentIndex > destinationIndex) {
+    return { state: "passed", label: `Passed ${destinationStop.stop_name}`, targetStopId: null }
+  }
+  if (currentIndex === destinationIndex) {
+    return { state: "arrived", label: `Reached ${destinationStop.stop_name}`, targetStopId: null }
+  }
+  if (currentIndex < boardingIndex) {
+    return { state: "approaching", label: `On the way to ${boardingStop.stop_name}`, targetStopId: boardingStop.stop_id }
+  }
+  if (currentIndex === boardingIndex) {
+    return {
+      state: "at_source",
+      label: `At ${boardingStop.stop_name}`,
+      targetStopId: destinationIndex > boardingIndex ? destinationStop.stop_id : null,
+    }
+  }
+  return { state: "departed", label: `Departed ${boardingStop.stop_name}`, targetStopId: destinationStop.stop_id }
+}
+
+function formatArrivalTime(eta) {
+  if (eta?.eta_minutes == null) return ""
+  const updatedAt = eta.last_updated_at ? new Date(eta.last_updated_at).getTime() : Date.now()
+  if (!Number.isFinite(updatedAt)) return ""
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(updatedAt + eta.eta_minutes * 60_000))
+}
+
+function formatEtaDuration(minutes) {
+  if (minutes <= 0) return "less than 1 min"
+  const totalMinutes = Math.ceil(minutes)
+  const hours = Math.floor(totalMinutes / 60)
+  const remainingMinutes = totalMinutes % 60
+  return [
+    hours ? `${hours} hr${hours === 1 ? "" : "s"}` : "",
+    remainingMinutes ? `${remainingMinutes} min` : "",
+  ].filter(Boolean).join(" ")
+}
+
 export default function TransitDashboard() {
   const [stops, setStops] = useState([])
   const [routes, setRoutes] = useState([])
@@ -32,12 +87,13 @@ export default function TransitDashboard() {
   const [destination, setDestination] = useState("")
   const [boardingStopId, setBoardingStopId] = useState("")
   const [etaByBus, setEtaByBus] = useState({})
+  const [stopEtas, setStopEtas] = useState({})
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState("")
   const [lastSync, setLastSync] = useState(null)
 
-  const refreshLiveBuses = useCallback(async (routeId, stopId, destinationId) => {
+  const refreshLiveBuses = useCallback(async (routeId, boardingStopId, destinationId, routeStops) => {
     const liveResult = await apiGet("/api/v1/public/buses/live/", {
       route_id: routeId,
       destination_stop_id: destinationId,
@@ -50,13 +106,19 @@ export default function TransitDashboard() {
         : activeBuses[0]?.bus_id || ""
     ))
     setLastSync(new Date())
-    if (stopId && activeBuses.length) {
+    if (boardingStopId && activeBuses.length) {
       const entries = await Promise.all(activeBuses.map(async (bus) => {
+        const journey = getJourneyProgress(bus, routeStops, boardingStopId, destinationId)
+        if (!journey.targetStopId) {
+          return [bus.bus_id, { ...journey, eta_minutes: null }]
+        }
         try {
-          const eta = await apiGet(`/api/v1/public/buses/${encodeURIComponent(bus.bus_id)}/eta/`, { stop_id: stopId })
-          return [bus.bus_id, eta]
+          const eta = await apiGet(`/api/v1/public/buses/${encodeURIComponent(bus.bus_id)}/eta/`, {
+            stop_id: journey.targetStopId,
+          })
+          return [bus.bus_id, { ...eta, target_stop_id: journey.targetStopId }]
         } catch (requestError) {
-          return [bus.bus_id, { error: requestError.message }]
+          return [bus.bus_id, { error: requestError.message, target_stop_id: journey.targetStopId }]
         }
       }))
       setEtaByBus(Object.fromEntries(entries))
@@ -70,7 +132,7 @@ export default function TransitDashboard() {
     setRoute(detail)
     const nextStopId = boardingId || detail.route_stops[0]?.stop_id || ""
     setBoardingStopId(nextStopId)
-    await refreshLiveBuses(routeId, nextStopId, destinationId)
+    await refreshLiveBuses(routeId, nextStopId, destinationId, detail.route_stops)
   }, [refreshLiveBuses])
 
   useEffect(() => {
@@ -91,7 +153,7 @@ export default function TransitDashboard() {
           setRoute(detail)
           const firstStopId = detail.route_stops[0]?.stop_id || ""
           setBoardingStopId(firstStopId)
-          await refreshLiveBuses(firstRoute.route_id, firstStopId)
+          await refreshLiveBuses(firstRoute.route_id, firstStopId, "", detail.route_stops)
         }
       } catch (requestError) {
         if (active) setError(requestError.message)
@@ -106,26 +168,100 @@ export default function TransitDashboard() {
   useEffect(() => {
     if (!route?.route_id) return undefined
     const intervalId = window.setInterval(() => {
-      refreshLiveBuses(route.route_id, boardingStopId, destination).catch((requestError) => setError(requestError.message))
+      refreshLiveBuses(route.route_id, boardingStopId, destination, route.route_stops).catch((requestError) => setError(requestError.message))
     }, 10000)
     return () => window.clearInterval(intervalId)
-  }, [route?.route_id, boardingStopId, destination, refreshLiveBuses])
+  }, [route?.route_id, route?.route_stops, boardingStopId, destination, refreshLiveBuses])
 
   const routeDataSource = route?.data_source || "demo"
   const isDemoData = routeDataSource === "demo"
   const selectedBus = buses.find((bus) => bus.bus_id === selectedBusId) || null
-  const routeDestinationIndex = route?.route_stops?.findIndex((stop) => stop.stop_id === destination) ?? -1
-  const visibleRouteStops = routeDestinationIndex >= 0
-    ? route.route_stops.slice(0, routeDestinationIndex + 1)
-    : route?.route_stops || []
+  const selectedEta = etaByBus[selectedBusId]
+  const selectedJourney = getJourneyProgress(
+    selectedBus,
+    route?.route_stops || [],
+    boardingStopId,
+    destination,
+  )
+  const arrivalTime = formatArrivalTime(selectedEta)
+  const etaTargetStop = route?.route_stops?.find((stop) => stop.stop_id === selectedEta?.target_stop_id)
+  const arrivalDetail = selectedEta?.eta_minutes != null && etaTargetStop
+    ? `About ${formatEtaDuration(selectedEta.eta_minutes)} to ${etaTargetStop.stop_name}`
+    : ""
+  const arrivalValue = arrivalTime
+    || (selectedJourney.state === "arrived"
+      ? "Trip complete"
+      : selectedJourney.state === "passed"
+        ? "Destination passed"
+        : selectedJourney.state === "at_source"
+          ? "At your boarding stop"
+          : "Arrival time unavailable")
   const routeOriginIndex = route?.route_stops?.findIndex((stop) => stop.stop_id === origin) ?? -1
-  const boardingOptions = routeDestinationIndex >= 0
-    ? route.route_stops.slice(Math.max(0, routeOriginIndex), routeDestinationIndex + 1)
-    : route?.route_stops || []
+  const routeDestinationIndex = route?.route_stops?.findIndex((stop) => stop.stop_id === destination) ?? -1
+  const routeStartIndex = routeOriginIndex >= 0 ? routeOriginIndex : 0
+  const routeEndIndex = routeDestinationIndex >= 0
+    ? routeDestinationIndex
+    : (route?.route_stops?.length || 0) - 1
+  const currentStopIndex = route?.route_stops?.findIndex(
+    (stop) => stop.stop_id === selectedBus?.current_stop_id,
+  ) ?? -1
+  const visibleStartIndex = currentStopIndex >= 0 && currentStopIndex < routeStartIndex
+    ? currentStopIndex
+    : routeStartIndex
+  const visibleRouteStops = routeEndIndex >= visibleStartIndex
+    ? route?.route_stops?.slice(visibleStartIndex, routeEndIndex + 1) || []
+    : []
+  const currentStopSequence = route?.route_stops?.find(
+    (stop) => stop.stop_id === selectedBus?.current_stop_id,
+  )?.sequence ?? null
   const selectedStop = useMemo(
     () => route?.route_stops?.find((stop) => stop.stop_id === boardingStopId),
     [route, boardingStopId],
   )
+
+  useEffect(() => {
+    if (!selectedBus || !route?.route_stops?.length) {
+      setStopEtas({})
+      return undefined
+    }
+
+    const routeStops = route.route_stops
+    const currentStopIndex = routeStops.findIndex((stop) => stop.stop_id === selectedBus.current_stop_id)
+    const segmentStops = routeStops.slice(visibleStartIndex, routeEndIndex + 1)
+    if (currentStopIndex < 0) {
+      setStopEtas(Object.fromEntries(segmentStops.map((stop) => [stop.stop_id, { error: "Bus position unavailable" }])))
+      return undefined
+    }
+
+    const upcomingStops = segmentStops.filter(
+      (stop) => routeStops.findIndex((routeStop) => routeStop.stop_id === stop.stop_id) > currentStopIndex,
+    )
+    if (!upcomingStops.length) {
+      setStopEtas({})
+      return undefined
+    }
+
+    let active = true
+    setStopEtas({})
+    Promise.all(upcomingStops.map(async (stop) => {
+      try {
+        const eta = await apiGet(`/api/v1/public/buses/${encodeURIComponent(selectedBus.bus_id)}/eta/`, {
+          stop_id: stop.stop_id,
+        })
+        return [stop.stop_id, { ...eta, arrival_time: formatArrivalTime(eta) }]
+      } catch (requestError) {
+        return [stop.stop_id, { error: requestError.message }]
+      }
+    })).then((entries) => {
+      if (active) setStopEtas(Object.fromEntries(entries))
+    })
+    return () => { active = false }
+  }, [
+    selectedBus,
+    route?.route_stops,
+    visibleStartIndex,
+    routeEndIndex,
+  ])
 
   async function searchRoutes(event) {
     event.preventDefault()
@@ -165,7 +301,7 @@ export default function TransitDashboard() {
     setBoardingStopId(stopId)
     if (!route?.route_id) return
     try {
-      await refreshLiveBuses(route.route_id, stopId, destination)
+      await refreshLiveBuses(route.route_id, stopId, destination, route.route_stops)
     } catch (requestError) {
       setError(requestError.message)
     }
@@ -182,6 +318,7 @@ export default function TransitDashboard() {
           <a href="#discover">Discover</a>
           <a href="#discover">Public services</a>
         </nav>
+        <Link className="quiet-link" href="/login">Sign in</Link>
       </header>
 
       <section className="dashboard-intro">
@@ -224,16 +361,84 @@ export default function TransitDashboard() {
 
         <div className="tracking-grid">
           <div className="route-overview">
-            <div className="route-overview-heading"><div><b>{route?.route_name || "Choose a route"}</b><small>{route ? isDemoData ? `${buses.length} demo bus examples` : `${buses.length} ${buses.length === 1 ? "bus" : "buses"} running on this route` : "Available buses appear here"}</small></div><span className={`sync-label ${buses.length ? "" : "sync-muted"}`}><i /> {lastSync ? `Checked ${formatUpdated(lastSync)}` : "Waiting for data check"}</span></div>
+            <div className="route-overview-heading">
+              <div>
+                <b>{route?.route_name || "Choose a route"}</b>
+                <small>
+                  {route
+                    ? isDemoData
+                      ? `${buses.length} demo bus examples`
+                      : `${buses.length} ${buses.length === 1 ? "bus" : "buses"} on this route`
+                    : "Available buses appear here"}
+                </small>
+              </div>
+            </div>
             {route && route.route_stops?.length
-              ? <RouteProgress stops={visibleRouteStops} bus={selectedBus} sourceStopId={origin} />
+              ? (
+                <RouteProgress
+                  stops={visibleRouteStops}
+                  bus={selectedBus}
+                  sourceStopId={origin}
+                  destinationStopId={destination}
+                  boardingStopId={boardingStopId}
+                  currentStopSequence={currentStopSequence}
+                  stopEtas={stopEtas}
+                  onSelectStop={changeBoardingStop}
+                />
+              )
               : <div className="route-overview-empty"><span>↗</span><b>{loading ? "Finding routes…" : "No route selected"}</b><small>Choose an origin and destination to see running buses.</small></div>}
-            {route && buses.length === 0 && <div className="empty-live"><span>◷</span><span><b>{isDemoData ? "No demo bus examples match" : "No active bus reported"}</b><small>{isDemoData ? "No scheduled timetable is available in this demo." : "Showing route stops while live service data is unavailable."}</small></span><i>{isDemoData ? "Demo only" : "No service signal"}</i></div>}
+            {route && buses.length === 0 && (
+              <div className="empty-live">
+                <span aria-hidden="true">◷</span>
+                <span>
+                  <b>{isDemoData ? "No demo buses to show" : "No active bus reported"}</b>
+                  <small>
+                    {isDemoData
+                      ? "This demo has no scheduled timetable."
+                      : "Route stops remain available while bus data is unavailable."}
+                  </small>
+                </span>
+                <i>{isDemoData ? "Demo only" : "No signal"}</i>
+              </div>
+            )}
+            {selectedBus && (
+              <section className={`bus-status-card ${isDemoData ? "bus-status-demo" : ""}`} aria-label="Selected bus status">
+                <div className="bus-status-heading">
+                  <span className="bus-status-icon" aria-hidden="true">🚌</span>
+                  <div className="bus-status-identity">
+                    <small>Selected bus</small>
+                    <b>{selectedBus.bus_registration}</b>
+                  </div>
+                  <span className={`bus-status-badge ${selectedBus.is_stale ? "bus-status-stale" : ""}`}>
+                    {isDemoData ? "Demo data" : selectedBus.is_stale ? "Signal may be old" : "Status available"}
+                  </span>
+                </div>
+                <div className="bus-status-arrival">
+                  <small>{selectedJourney.label}</small>
+                  <b>{arrivalValue}</b>
+                  {arrivalDetail && <span className="bus-status-arrival-detail">{arrivalDetail}</span>}
+                </div>
+                <div className="bus-status-location">
+                  <span aria-hidden="true">●</span>
+                  <div>
+                    <small>Bus is currently at</small>
+                    <b>{selectedBus.current_stop_name}</b>
+                  </div>
+                </div>
+                <div className="bus-status-footer">
+                  <span>Speed <b>{selectedBus.speed_kmh} km/h</b></span>
+                  {lastSync && <span>Last checked {formatUpdated(lastSync)}</span>}
+                </div>
+                {isDemoData && <p>Example position and arrival estimate — not a live update.</p>}
+              </section>
+            )}
             {route && buses.length > 0 && (
               <div className="active-bus-list">
-                <div className="active-bus-heading"><b>{isDemoData ? "Demo bus examples" : "Buses running now"}</b><small>Choose a bus to show its {isDemoData ? "example" : "current"} stop</small></div>
+                <div className="active-bus-heading">
+                  <b>{buses.length > 1 ? "Other buses on this route" : "Bus on this route"}</b>
+                  <small>Tap a bus to view its status</small>
+                </div>
                 {buses.map((bus) => {
-                  const eta = etaByBus[bus.bus_id]
                   return (
                     <button
                       aria-pressed={bus.bus_id === selectedBusId}
@@ -245,12 +450,9 @@ export default function TransitDashboard() {
                       <span className="active-bus-icon" aria-hidden="true">🚌</span>
                       <span className="active-bus-copy">
                         <b>{bus.bus_registration}</b>
-                        <small>At {bus.current_stop_name}</small>
+                        <small>Currently at {bus.current_stop_name}</small>
                       </span>
-                      <span className="active-bus-eta">
-                        <b>{eta?.eta_minutes == null ? "ETA —" : `${eta.eta_minutes} min`}</b>
-                        <small>{bus.speed_kmh} km/h</small>
-                      </span>
+                      <span className="bus-select-indicator">{bus.bus_id === selectedBusId ? "Selected" : "View status"}</span>
                     </button>
                   )
                 })}
@@ -265,20 +467,25 @@ export default function TransitDashboard() {
                 {routes.map((item) => (
                   <button className={`route-option ${route?.route_id === item.route_id ? "route-option-active" : ""}`} key={item.route_id} onClick={() => selectRoute(item.route_id)} type="button">
                     <span className="route-badge">{item.route_id.replace("route-", "")}</span>
-                    <span className="route-option-copy"><b>{item.route_name}</b><small>{item.active_bus_count} {item.active_bus_count === 1 ? "bus" : "buses"} · {item.stop_count} stops</small></span>
+                    <span className="route-option-copy">
+                      <b>{item.route_name}</b>
+                      <small>
+                        {isDemoData
+                          ? `${item.active_bus_count} bus examples`
+                          : `${item.active_bus_count} ${item.active_bus_count === 1 ? "bus" : "buses"}`}
+                        {" · "}{item.stop_count} stops
+                      </small>
+                    </span>
                     <span className="route-chevron">›</span>
                   </button>
                 ))}
               </div>
             ) : <div className="no-routes">{error ? "Route results are unavailable until the backend connection is restored." : "No routes serve those stops yet. Try another journey."}</div>}
 
-            {route && route.route_stops?.length > 0 && (
+            {route && selectedStop && (
               <div className="boarding-select">
-                <label htmlFor="boarding-stop">Your boarding stop</label>
-                <select id="boarding-stop" value={boardingStopId} onChange={(event) => changeBoardingStop(event.target.value)}>
-                  {boardingOptions.map((stop) => <option value={stop.stop_id} key={stop.stop_id}>{stop.stop_name}</option>)}
-                </select>
-                {selectedStop && <small>{isDemoData ? "Displayed ETA uses example coordinates and speed." : "ETA is calculated from available bus telemetry."}</small>}
+                <b>Boarding at {selectedStop.stop_name}</b>
+                <small>{isDemoData ? "Displayed ETA uses example coordinates and speed." : "ETA is calculated from available bus telemetry."}</small>
               </div>
             )}
           </aside>
@@ -287,12 +494,11 @@ export default function TransitDashboard() {
         {route && (
           <div className="bottom-info">
             <div className="fare-card">
-              <span className="fare-icon">₹</span><span><small>FARE INFORMATION</small><b>{route.fare_rule ? `From ₹${route.fare_rule.base_fare}` : "Fare unavailable"}</b><small>{route.fare_rule ? `₹${route.fare_rule.per_km_rate} per km · demo fare` : "No fare rule provided"}</small></span>
-            </div>
-            <div className="eta-card">
-              <span className="eta-icon">◷</span><span><small>{isDemoData ? "ILLUSTRATIVE ETA" : "BUS ARRIVAL"}</small>
-                {selectedBus ? <b>{selectedBus.bus_registration}: {etaByBus[selectedBus.bus_id]?.eta_minutes == null ? "ETA unavailable" : `${etaByBus[selectedBus.bus_id].eta_minutes} min`}</b> : <b>{isDemoData ? "No matching demo bus" : "Waiting for an active bus"}</b>}
-                <small>{selectedBus ? `${isDemoData ? "Example estimate" : "To"} ${selectedStop?.stop_name || "your stop"} · ${selectedBus.speed_kmh} km/h` : isDemoData ? "Demo fixture data only" : "No live bus currently active"}</small>
+              <span className="fare-icon" aria-hidden="true">₹</span>
+              <span>
+                <small>FARE INFORMATION</small>
+                <b>{route.fare_rule ? `From ₹${route.fare_rule.base_fare}` : "Fare unavailable"}</b>
+                <small>{route.fare_rule ? `₹${route.fare_rule.per_km_rate} per km · demo fare` : "No fare rule provided"}</small>
               </span>
             </div>
           </div>

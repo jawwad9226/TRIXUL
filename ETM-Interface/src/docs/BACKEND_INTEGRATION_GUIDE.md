@@ -13,6 +13,9 @@ The three integrated endpoints are:
 > [!NOTE]
 > For undefined endpoints like `/routeData` and `/conductorData`, the `mockData.js` service was modified to instantly return local placeholder data instead of making network calls. This prevents `net::ERR_CONNECTION_REFUSED` crashes while you focus on the strict API contract.
 
+> [!WARNING]
+> The current conductor login accepts an employee ID without another credential, and the main backend does not enforce authorization on operational/admin APIs. The LAN setup also uses HTTP for requests carrying JWTs. Do not use real credentials or operational data on an untrusted network; review the findings in [`../../../testing.md`](../../../testing.md) before deployment.
+
 ---
 
 ## 2. Dependencies to Install
@@ -57,7 +60,7 @@ EXPO_PUBLIC_API_URL=http://192.168.1.5:8000
 Ensure `django-cors-headers` is configured in your Django settings:
 1. Add `'corsheaders'` to `INSTALLED_APPS`.
 2. Add `'corsheaders.middleware.CorsMiddleware'` to `MIDDLEWARE` (must be above `CommonMiddleware`).
-3. Set `CORS_ALLOW_ALL_ORIGINS = True` to allow development requests.
+3. Allow only the specific local development origins that you use. Do not enable `CORS_ALLOW_ALL_ORIGINS = True` on a network-accessible service.
 
 ---
 

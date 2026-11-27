@@ -9,6 +9,7 @@ All Swayam Yatri app code, configuration, and documentation are kept within this
 The current prototype focuses on:
 
 - Guest access to a bus-route dashboard.
+- Optional development-only phone OTP sign-in; guest transit browsing remains available.
 - Searching routes by origin and destination stops.
 - Viewing ordered route stops, demo fare calculations, bus positions, and estimated arrival times.
 - Android-friendly responsive layout with larger touch controls, safe-area spacing, and a mobile bottom navigation bar.
@@ -21,22 +22,23 @@ This is a demo environment, not a production transit service. Route and bus info
 | Area                     | Changes                                                                                                                                                                                                                                                  |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Next.js app              | Root-level Next.js App Router pages for welcome (`/`) and transit dashboard (`/dashboard`).                                                                                                                                                               |
-| Route and bus discovery  | Route search reports demo bus counts. Select a route to see example bus positions, speed, illustrative ETA, and demo fare; the UI labels fixture data as demo rather than live service.                                                                |
-| Stop progress display    | Replaced geographic maps in both clients with a simple horizontal route line. Each point is a stop; selecting a bus places its bus marker on the API-provided current stop.                                                                              |
-| Journey-aware bus filter | Selecting a source and destination shows the route through the destination only. Stops before the source remain visible to locate approaching buses; buses currently beyond the destination are excluded from recommendations and route bus counts. |
-| Expo Android app         | `Expo-App/` is a standalone React Native client for Expo Go; it shares the public API and mirrors the website dashboard's branding, content hierarchy, initial route selection, route/bus cards, progress line, fare/ETA panels, discovery cards, and navigation while using native controls. Source and destination are visible native picker buttons that open a full stop list. |
+| Route and bus discovery  | Route search reports demo bus counts. Selecting a bus shows its current stop, arrival estimate, speed, last data-check time, and demo/staleness status in one clear status card; fixture data is labeled as demo rather than live service.           |
+| Stop progress display    | Both clients use a vertical, interactive stop timeline instead of a geographic map. The selected bus is positioned at its API-provided current stop, with per-stop estimated arrival labels. |
+| Journey-aware bus filter | The selected origin and destination stay marked. If the selected bus is upstream of the origin, the timeline extends back to that bus's current stop so it remains visible; stops earlier than the bus's current stop are not included. Buses beyond the destination are excluded. |
+| Expo Android app         | `Expo-App/` is a standalone React Native client for Expo Go; it shares the public API and mirrors the website dashboard's branding, content hierarchy, initial route selection, route/bus cards, progress line, selected-bus status card, fare information, discovery cards, and navigation while using native controls. Source and destination are visible native picker buttons that open a full stop list. |
+| Expo web preview         | `Expo-App/` also supports the Expo web target. Its `react-dom` and `react-native-web` dependencies are declared in the Expo package manifest; this browser preview is separate from the Next.js website. |
 | Android usability        | Mobile viewport metadata, safe-area padding, touch-sized form controls, responsive route progress and bus cards, sticky dashboard header, and fixed bottom navigation on narrow screens.                                                                 |
 | Frontend API integration | Next.js uses `NEXT_PUBLIC_API_BASE_URL`; Expo uses `EXPO_PUBLIC_API_BASE_URL`. Both call the same public API. Leaflet and native map packages were removed because neither client uses a geographic map.                                                 |
 | Transit API              | Public route search/detail, stop search, live-list-shaped demo bus data, and bus ETA endpoints under `/api/v1/public/`.                                                                                                                                  |
 | Demo data                | Static stops, routes, fare rules, and buses in `Backend/transit/mock_data.py`; no database seed or migration step.                                                                                                                                        |
-| Authentication           | Sign-in is not included; both clients are browse-only.                                                                                                                                                                                                      |
+| Authentication           | Development-only phone OTP endpoints are available in the isolated API. OTPs are console-delivered only with `DEBUG=True`; this is not production identity verification. Guest transit browsing remains available. |
 | Backend simplification   | Removed the PostgreSQL/PostGIS driver requirement, ORM transit models/migrations, and database-based seed commands. Django uses an ephemeral in-memory SQLite connection only for framework/test-runner compatibility; app records are not stored there. |
 | Documentation            | This file describes features, endpoints, setup, Android use, limitations, and validation. [`test_data.md`](./test_data.md) lists route, stop, fare, bus fixtures, and public API examples.                                                                     |
 
 ### Main files
 
 - `app/`: Next.js App Router pages and global styling.
-- `components/TransitDashboard.jsx`: transit search, route/bus display, and mobile navigation.
+- `components/TransitDashboard.jsx`: transit search, route/bus display, selected-bus status card, and mobile navigation.
 - `components/RouteProgress.jsx`: simple stop-by-stop line with the selected bus shown at its current stop.
 - `lib/api.js`: shared public API GET client.
 - `Expo-App/App.js`: native route search, stop-line bus position, and bus ETA.
@@ -121,7 +123,7 @@ python manage.py check
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Leave it running. To enable Android-device access instead, use `python manage.py runserver 0.0.0.0:8000` as shown in section D.
+Leave it running for local browser testing. To enable Android-device access, bind to the network as shown in section D only on a trusted private Wi-Fi network; do not port-forward or expose this development server to the public internet.
 
 ### C. Start the Next.js website
 
@@ -165,7 +167,7 @@ ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.23
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.23:3000
 ```
 
-Replace `192.168.1.23` in those examples with the current Wi-Fi address. Preserve other allowed entries, save `.env`, and restart Django; a running Django process does not reload this file.
+Replace `192.168.1.23` in those examples with the current Wi-Fi address. Preserve other allowed entries, save `.env`, and restart Django; a running Django process does not reload this file. For the Expo web preview, also allow its browser origin on port `8081` (for example `http://localhost:8081` on this computer).
 
 2. Set the root `.env.local` API URL to that same current address only if you plan to open the Next.js website on the phone:
 
@@ -191,7 +193,7 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.1.23:8000
 
 Replace the example IP with the current Wi-Fi IPv4 address. The Expo API URL must exactly match the current computer address. A stale IP makes requests fail and prevents the stop picker from loading its choices.
 
-4. Start Django, bound to the network interface, in its own terminal:
+4. For Android-device testing only, start Django bound to the network interface in its own terminal. This exposes the development server to devices on the LAN; use only a trusted private Wi-Fi network and do not port-forward it:
 
 ```powershell
 Set-Location 'E:\CODES\PublicRepo\Trixual\User_Swaym-Yatri\Backend'
@@ -219,11 +221,13 @@ npx expo start --lan --clear
 
 Expo displays its own QR code. Scan it using **Expo Go** (not the Android camera browser link) to launch the native app. If Expo shows a previously opened project, close it and scan the new QR code from the restarted Metro server. On the phone, `localhost` means the phone itself, so always use the computer's LAN IP for the API.
 
+To preview the Expo client in a desktop browser, run `npm run web` from `Expo-App/`. This starts Expo's React Native web target; it is separate from the Next.js website in the project root. Keep the Expo API URL in `.env` pointed at a backend address reachable from the browser.
+
 7. Test network reachability from Android Chrome before opening the app: visit `http://<CURRENT_WIFI_IP>:8000/api/v1/public/stops/`. The endpoint should return JSON. If it does not, confirm both devices are on the same Wi-Fi, Django was restarted with the current IP in `ALLOWED_HOSTS`, and Windows Firewall allows Python on the trusted private network.
 
 If Windows Firewall prompts, allow Node.js/Python only on a trusted private network. The phone must be able to reach the API at the current Wi-Fi address. If LAN discovery is blocked, Expo tunnel mode may be used for Metro, but the Django API must still be reachable by the phone. This setup requires the computer, API server, and (for Expo Go) Metro bundler to remain running.
 
-The Next.js website and Expo client are separate: Android Chrome opens the website URL; Expo Go scans the Expo QR. Both display local mock bus data. A 10-second refresh does not represent live vehicle telemetry.
+The Next.js website and Expo client are separate: Android Chrome opens the website URL; Expo Go scans the Expo QR; and `npm run web` opens the Expo client in a browser. All clients display local mock bus data. A 10-second refresh does not represent live vehicle telemetry.
 
 ### Browser cannot reach the API
 
@@ -312,3 +316,123 @@ This log records today's Swayam Yatri work, decisions, and validation.
 
 - Bus positions, fares, speed, and ETA remain illustrative mock fixtures. No live telemetry, schedule, crowd-sense, or map integration was added.
 - Backend fixture responses still generate request-time `last_updated_at` values; the UI now labels client refresh time as a data check, but API freshness metadata should be corrected separately before adding a real live-data source.
+
+## Work log — 2026-11-27 (Asia/Kolkata)
+
+This log records today's dashboard redesign, implementation decisions, validation, and remaining limitations.
+
+### Starting context and inspection
+
+- Continued work in `User_Swaym-Yatri/` and preserved the existing worktree state; no unrelated files or backend behavior were changed.
+- Reviewed the commuter dashboard, its responsive styles, the Expo dashboard, the project documentation, and root `MEMORY.md`.
+- Inspected the running dashboard before making changes. The selected bus's ETA appeared in more than one place, and an estimate of `0 min` was not clear to commuters.
+- Confirmed that the backend still supplies static demo fixtures, not real live telemetry or a scheduled timetable. The existing route, bus, boarding-stop selection, and 10-second refresh flow was retained.
+
+### Scope and decisions
+
+- Reorganized the selected bus information into one prominent status card so commuters can quickly read the bus registration, current stop, arrival estimate at their boarding stop, speed, last data-check time, and demo/staleness status.
+- When a bus is at the selected boarding stop, show “Bus is here” instead of “0 min.” A zero-minute estimate for a bus not at that stop is shown as “Less than 1 min.”
+- Refined the status card hierarchy so the arrival estimate is the prominent first message, followed by a plain-language current-stop line. Replaced terse uppercase captions with conversational labels such as “Estimated arrival at Shegaon Bus Stand,” “Bus is currently at,” and “Last checked.”
+- Simplified bus choices to focus on selecting a bus and seeing its current stop; removed the duplicated ETA display and obsolete styles tied to the old layout.
+- Applied the clearer status-card hierarchy and conversational labels to the Expo client. Route search, route/bus selection, boarding-stop changes, API contracts, and refresh timing remain unchanged.
+- Kept fixture values explicitly labeled as examples; no claim of real-time location or timetable availability was introduced.
+
+### Files changed
+
+- `components/TransitDashboard.jsx`: added the selected-bus status card, clearer arrival/current-stop wording, and simplified bus selection rows.
+- `app/globals.css`: added responsive status-card styling and removed outdated duplicate-ETA/status styles.
+- `Expo-App/App.js`: added a matching native selected-bus status card and conversational status labels.
+- `document.md`: updated the feature inventory and added this dated work log.
+- Root `MEMORY.md`: updated the current Swayam Yatri focus and validation status.
+
+### Commands and validation
+
+- `npm run lint` from `User_Swaym-Yatri/`: passed after the wording/layout refinement.
+- `npx expo export --platform android` from `Expo-App/`: passed; the Android bundle completed with 591 modules. Temporary export output was removed.
+- Browser interaction checks passed for changing the selected bus, selecting route 102, and changing the boarding stop. Selecting Shegaon Bus Stand for a bus currently at that stop displayed “Bus is here”; selecting another bus updated the status while preserving the boarding stop.
+- Checked the card at 390px mobile width: it measured about 326px wide without horizontal overflow. The desktop check at 1440px also passed; one status card was present and no duplicate ETA panel remained.
+- For final interaction checks, started the isolated Django and Next.js development servers; Django logged successful HTTP 200 bus and ETA responses. Both servers were stopped after verification.
+- Did not run `npm run build`: it would rewrite the existing `.next` build cache. No dependency manifests changed, and no packages were installed.
+- No backend/API changes, database writes, external API requests, staging, or commits were made.
+
+### Remaining limitations
+
+- Bus positions, speed, and ETAs still come from illustrative mock fixtures, not a live service. The UI accurately labels the data as examples.
+- Desktop and mobile browser visuals were reviewed; no production build was run to avoid changing the existing `.next` cache.
+
+## Follow-up work log — Expo web bundling (2026-11-27)
+
+### Report and diagnosis
+
+- The Expo web bundler failed to resolve `react-dom/client` from Expo's web app registry.
+- `npm ls react-dom react-native-web --depth=0` confirmed that neither web runtime dependency was installed or declared in the Expo app.
+
+### Fix and validation
+
+- Ran `npx expo install react-dom react-native-web` from `Expo-App/` so Expo selected SDK-compatible web dependencies and updated `package.json` and `package-lock.json`.
+- `npx expo export --platform web`: passed; web bundle completed with 196 modules. Temporary output was removed.
+- `npx expo export --platform android`: passed; Android bundle completed with 591 modules. Temporary output was removed.
+- Updated the setup guide with the `npm run web` preview command and clarified that Expo web is separate from the Next.js website.
+- `npx expo install --check` still reports the existing Expo package pin as older than its expected SDK patch version. It was left unchanged because it is separate from the missing web dependencies and both web and Android exports now pass.
+- npm reported three moderate audit advisories during installation; no forced audit upgrades were applied.
+
+## Follow-up work log — CORS and development phone login (2026-11-27)
+
+### Backend/CORS diagnosis
+
+- The reported request to `/api/v1/public/stops/` received a browser CORS rejection from origin `http://localhost:8081`. The Django public route endpoint itself returned HTTP 200, and `python manage.py check` reported no issues; this was an origin allowlist problem, not an unavailable API.
+- Port `8081` is the Expo web preview origin; the Next.js website uses port `3000`.
+- Added `http://localhost:8081` and `http://127.0.0.1:8081` to the local `Backend/.env` and the tracked `Backend/.env.example`. The user-managed Django process was left running with its existing settings; because it does not reload `.env`, the user chose to restart it later.
+- Verified a Django CORS preflight for `http://localhost:8081` returns HTTP 200 and `Access-Control-Allow-Origin: http://localhost:8081`.
+
+### Login status
+
+- Implemented development-only phone OTP request and verification endpoints under `/api/v1/public/auth/`, with CSRF protection, per-phone/IP request limits, hashed OTP storage, expiry, attempt limits, and signed-cookie sessions.
+- OTPs are printed to the backend terminal only when `DEBUG=True`; the API does not return the code, and production auth requests fail closed. No SMS provider or API key is used.
+- Added the phone sign-in page to Next.js and a sign-in modal to Expo. Both use credentialed requests and the CSRF endpoint; guests can continue using public transit features. Sign-out flushes the session.
+- Generated a local-only Django `SECRET_KEY` in the ignored `Backend/.env` because the existing value was empty. The secret was not added to tracked files or documentation.
+- Validation: Next.js ESLint and production build passed; Expo web and Android exports passed; all 23 Django transit tests passed with the local `.env` secret; the login page rendered in the browser.
+- Restart the user-managed Django process to load the updated local `SECRET_KEY` and CORS allowlist before testing login. The running process was not stopped or restarted.
+- This is a development demo identity, not a persisted user account or production authentication system.
+
+## Follow-up work log — interactive route stop timeline (2026-11-27)
+
+- Replaced the horizontal progress strip in the web and Expo dashboards with a vertical stop timeline inspired by `image.png`.
+- The timeline now shows only the selected origin through destination, inclusive, while preserving the original route sequence and showing each stop's distance from the trip origin. Stops are interactive: selecting one sets the boarding stop and refreshes the ETA.
+- The current public route API supplies stop order and distance but no scheduled stop times or platform data. The timeline does not invent or display those values.
+- Validation: Next.js lint and production build passed; Expo web and Android exports passed. In the browser, searching route 102 from Malkapur to Nashik showed Malkapur, Bhusawal, Manmad, and Nashik only; selecting Bhusawal updated the boarding status and ETA.
+
+## Follow-up work log — browser CSRF cookie handling (2026-11-27)
+
+- Diagnosed `CSRF cookie not set` on Expo web: the page used `localhost:8081` while the API used the machine's private IP. CORS allowed the request, but Django's `SameSite=Lax` CSRF cookie was cross-site and therefore unavailable to the credentialed browser POST.
+- Updated the Next.js and Expo web API clients to use the page hostname when both the configured API host and page host are local/private addresses. Native Expo continues using its configured LAN API URL. This preserves `SameSite=Lax` rather than weakening cookie policy.
+- Validation: Expo web at `http://localhost:8081` fetched the CSRF token successfully, then an intentionally invalid OTP request returned the expected serializer `400` instead of a CSRF `403`; no OTP was issued. Next.js lint/build and Expo web/Android exports passed.
+
+## Follow-up work log — boarding-stop status and clock-time arrival (2026-11-27)
+
+- Updated the web and Expo bus status cards to classify each bus against the selected boarding stop and destination in route order. Before boarding, the status names the boarding stop and the ETA targets it; after passing boarding, the status says `Departed [boarding stop]` and the ETA targets the destination. At the boarding stop, the card says `At [boarding stop]`; at or beyond the destination, it shows a completed/passed state instead of an ETA.
+- Where an ETA is available, both clients show an emphasized local clock-time arrival derived from the ETA response's `last_updated_at` plus `eta_minutes`, with the remaining duration and target stop as supporting text. The backend endpoint and its calculations were not changed.
+- Browser verification on Expo web, route 102 with Malkapur selected as the boarding stop: bus `MH-30-AB-1234` at Shegaon displayed `On the way to Malkapur Bus Stand`, a clock-time arrival, and the remaining time to Malkapur; bus `MH-30-DE-2468` at Bhusawal displayed `Departed Malkapur Bus Stand`, a clock-time arrival, and the remaining time to Pune Swargate.
+- These values still use the project's illustrative demo bus/ETA fixtures, not live telemetry or a published timetable. They must not be presented as official schedules or live tracking.
+- Validation: prior Next.js lint/build and Expo web/Android exports passed. The new status/time behavior was checked interactively in the running Expo web UI.
+
+## Follow-up work log — estimated arrival time at each stop (2026-11-27)
+
+- Added an estimated clock-time label to each upcoming stop in the selected origin-to-destination timeline, in both Next.js and Expo. Stops already passed are labeled `Passed`, the bus's current stop is labeled `Bus here now`, and future stops show `ETA [time]`; unavailable estimates are called out rather than fabricated.
+- Each future stop's time comes from the existing public bus ETA endpoint for the selected bus and stop, converted from `last_updated_at + eta_minutes`. Estimates refresh with the existing 10-second bus polling.
+- Browser verification on route 102 showed a bus at Shegaon with estimated times for Malkapur, Bhusawal, Manmad, Nashik, and Pune. Selecting the bus at Bhusawal changed earlier stops to `Passed`, showed `Bus here now` at Bhusawal, and retained ETAs for later stops.
+- These are approximate, speed-and-position-based estimates using the current demo fixtures, not scheduled arrival times. No stop dwell times or official timetable data are available, so the UI explicitly labels the times as estimates.
+- Validation: Next.js lint/build and Expo web/Android exports passed. Browser checks confirmed per-stop times in both web and Expo clients.
+
+## Follow-up work log — show buses approaching the selected origin (2026-11-27)
+
+- The live-bus service returns buses on the selected route that have not passed the destination; it does not exclude buses before the selected origin. The route timeline previously sliced away the selected bus's upstream position.
+- Updated Next.js and Expo to extend the displayed timeline back to the selected bus's current route stop when it is before the selected origin. The origin and destination remain marked, the current stop is visible, and stops before the origin show their distance as `km before source`; upcoming arrival estimates include the selected source.
+- Browser verification on route 104 from Bhusawal to Jalgaon showed bus `MH-30-KL-9753` at Malkapur in the bus list and timeline, marked `Bus here now` and `48.2 km before source`; Bhusawal and Jalgaon remained visible with estimated arrival times.
+
+## Security review — 2026-11-27
+
+- The read-only review found no actionable issue in the isolated Swayam Yatri OTP/CSRF/CORS/session/public API or the Next.js and Expo clients.
+- OTP remains a debug-only development flow, and route, fare, bus-position, and ETA values remain static demo fixtures. Do not present them as live service or use this prototype as an operational transit source.
+- The main TRIXUL backend and ETM have separate unresolved security findings; see the repository [`testing.md`](../testing.md). No security remediation was part of this documentation update.
+- Validation: Next.js lint/build and Expo web/Android exports passed; the pre-origin bus and extended timeline were verified in the browser.

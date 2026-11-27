@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -13,25 +14,251 @@ import {
   View,
 } from 'react-native';
 
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const CONFIGURED_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+
+function isLocalDevelopmentHost(hostname) {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '::1'
+    || /^10(?:\.\d{1,3}){3}$/.test(hostname)
+    || /^192\.168(?:\.\d{1,3}){2}$/.test(hostname)
+    || /^172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}$/.test(hostname);
+}
+
+function resolveApiBaseUrl() {
+  const url = new URL(CONFIGURED_API_BASE_URL);
+  if (
+    Platform.OS === 'web'
+    && typeof window !== 'undefined'
+    && isLocalDevelopmentHost(window.location.hostname)
+    && isLocalDevelopmentHost(url.hostname)
+  ) {
+    // Keep browser API requests on the page's host so Lax cookies remain same-site.
+    url.hostname = window.location.hostname;
+  }
+  return url.toString().replace(/\/+$/, '');
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 const REFRESH_INTERVAL_MS = 10_000;
 
-async function apiRequest(path) {
+async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}/api/v1/public/${path}`, {
-    headers: {
-      Accept: 'application/json',
-    },
+    ...options,
+    credentials: 'include',
+    headers: { Accept: 'application/json', ...options.headers },
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.detail || `Request failed (${response.status})`);
+    const detail = payload.detail || Object.values(payload).flat().join(' ');
+    throw new Error(detail || `Request failed (${response.status})`);
   }
   return payload;
+}
+
+async function apiPost(path, body, csrfToken) {
+  return apiRequest(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify(body),
+  });
 }
 
 function formatUpdated(value) {
   if (!value) return 'Update time unavailable';
   return `Checked ${new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function getJourneyProgress(bus, routeStops, boardingStopId, destinationStopId) {
+  const boardingStop = routeStops.find((stop) => stop.stop_id === boardingStopId) || routeStops[0];
+  const destinationStop = routeStops.find((stop) => stop.stop_id === destinationStopId)
+    || routeStops[routeStops.length - 1];
+  const currentIndex = routeStops.findIndex((stop) => stop.stop_id === bus?.current_stop_id);
+  const boardingIndex = routeStops.findIndex((stop) => stop.stop_id === boardingStop?.stop_id);
+  const destinationIndex = routeStops.findIndex((stop) => stop.stop_id === destinationStop?.stop_id);
+
+  if (currentIndex < 0 || boardingIndex < 0 || destinationIndex < boardingIndex) {
+    return { state: 'unknown', label: 'Route position unavailable', targetStopId: null };
+  }
+  if (currentIndex > destinationIndex) {
+    return { state: 'passed', label: `Passed ${destinationStop.stop_name}`, targetStopId: null };
+  }
+  if (currentIndex === destinationIndex) {
+    return { state: 'arrived', label: `Reached ${destinationStop.stop_name}`, targetStopId: null };
+  }
+  if (currentIndex < boardingIndex) {
+    return { state: 'approaching', label: `On the way to ${boardingStop.stop_name}`, targetStopId: boardingStop.stop_id };
+  }
+  if (currentIndex === boardingIndex) {
+    return {
+      state: 'at_source',
+      label: `At ${boardingStop.stop_name}`,
+      targetStopId: destinationIndex > boardingIndex ? destinationStop.stop_id : null,
+    };
+  }
+  return { state: 'departed', label: `Departed ${boardingStop.stop_name}`, targetStopId: destinationStop.stop_id };
+}
+
+function formatArrivalTime(eta) {
+  if (eta?.eta_minutes == null) return '';
+  const updatedAt = eta.last_updated_at ? new Date(eta.last_updated_at).getTime() : Date.now();
+  if (!Number.isFinite(updatedAt)) return '';
+  return new Intl.DateTimeFormat('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(updatedAt + eta.eta_minutes * 60_000));
+}
+
+function formatEtaDuration(minutes) {
+  if (minutes <= 0) return 'less than 1 min';
+  const totalMinutes = Math.ceil(minutes);
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  return [
+    hours ? `${hours} hr${hours === 1 ? '' : 's'}` : '',
+    remainingMinutes ? `${remainingMinutes} min` : '',
+  ].filter(Boolean).join(' ');
+}
+
+function PhoneLoginModal({ visible, onClose, onAuthenticated }) {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState('phone');
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!visible || step !== 'code' || secondsLeft <= 0) return undefined;
+    const timer = setTimeout(() => setSecondsLeft((remaining) => remaining - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [secondsLeft, step, visible]);
+
+  const sendCode = async () => {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const { csrf_token: csrfToken } = await apiRequest('auth/csrf/');
+      const result = await apiPost(
+        'auth/otp/request/',
+        { phone_number: phoneNumber.trim() },
+        csrfToken,
+      );
+      setCode('');
+      setStep('code');
+      setSecondsLeft(result.expires_in);
+      setMessage('Your one-minute code was printed to the backend terminal.');
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const { csrf_token: csrfToken } = await apiRequest('auth/csrf/');
+      await apiPost(
+        'auth/otp/verify/',
+        { phone_number: phoneNumber.trim(), code },
+        csrfToken,
+      );
+      onAuthenticated();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reset = () => {
+    setPhoneNumber('');
+    setCode('');
+    setStep('phone');
+    setSecondsLeft(0);
+    setMessage('');
+    setError('');
+    onClose();
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={reset}
+      transparent
+      visible={visible}
+    >
+      <View style={styles.loginModalBackdrop}>
+        <View style={styles.loginModalCard}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close sign in" onPress={reset} style={styles.loginModalClose}>
+            <Text style={styles.loginModalCloseText}>×</Text>
+          </Pressable>
+          <Text style={styles.loginModalEyebrow}>SWAYAM YATRI</Text>
+          <Text style={styles.loginModalTitle}>{step === 'phone' ? 'Sign in with your phone' : 'Enter your code'}</Text>
+          <Text style={styles.loginModalCopy}>
+            {step === 'phone'
+              ? 'Enter your number in international format, including + and country code.'
+              : `Code expires in ${secondsLeft}s.`}
+          </Text>
+
+          {step === 'phone' ? (
+            <>
+              <Text style={styles.loginInputLabel}>Phone number</Text>
+              <TextInput
+                autoComplete="tel"
+                autoFocus
+                keyboardType="phone-pad"
+                onChangeText={setPhoneNumber}
+                placeholder="+919876543210"
+                placeholderTextColor="#7b8c91"
+                style={styles.loginInput}
+                value={phoneNumber}
+              />
+              <Button disabled={busy || !phoneNumber.trim()} onPress={sendCode}>
+                {busy ? 'Sending code…' : 'Send one-time code'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Text style={styles.loginInputLabel}>6-digit code</Text>
+              <TextInput
+                autoComplete="one-time-code"
+                autoFocus
+                editable={secondsLeft > 0}
+                keyboardType="number-pad"
+                maxLength={6}
+                onChangeText={(value) => setCode(value.replace(/\D/g, ''))}
+                placeholder="000000"
+                placeholderTextColor="#7b8c91"
+                style={styles.loginInput}
+                value={code}
+              />
+              <Button disabled={busy || secondsLeft === 0 || code.length !== 6} onPress={verifyCode}>
+                {busy ? 'Verifying…' : 'Verify and continue'}
+              </Button>
+              <Button disabled={busy || secondsLeft > 0} onPress={sendCode} secondary>
+                {secondsLeft > 0 ? `Request another code in ${secondsLeft}s` : 'Send a new code'}
+              </Button>
+              <Pressable disabled={busy} onPress={() => { setStep('phone'); setCode(''); setMessage(''); setError(''); }} style={styles.loginChangePhone}>
+                <Text style={styles.loginChangePhoneText}>Change phone number</Text>
+              </Pressable>
+            </>
+          )}
+
+          {message ? <Text accessibilityRole="status" style={styles.successText}>{message}</Text> : null}
+          {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
+          <Text style={styles.loginDevNote}>Development sign-in only. No SMS is sent; codes appear in the backend terminal.</Text>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 function Button({ children, onPress, secondary = false, disabled = false }) {
@@ -123,32 +350,84 @@ function StopSelector({ label, stops, value, onChange, loading, onRetry }) {
   );
 }
 
-function RouteProgress({ stops, bus, sourceStopId }) {
+function RouteProgress({
+  stops,
+  bus,
+  sourceStopId,
+  destinationStopId,
+  boardingStopId,
+  currentStopSequence,
+  stopEtas = {},
+  onSelectStop,
+}) {
+  const firstStopId = sourceStopId || stops[0]?.stop_id;
+  const lastStopId = destinationStopId || stops[stops.length - 1]?.stop_id;
+  const sourceDistance = Number(
+    stops.find((stop) => stop.stop_id === sourceStopId)?.distance_km
+      ?? stops[0]?.distance_km
+      ?? 0,
+  );
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.progressRow}
-    >
+    <View style={styles.progressPanel}>
+      <View style={styles.progressHeading}>
+        <Text style={styles.progressTitle}>Estimated stop arrivals</Text>
+        <Text style={styles.progressSubtitle}>Tap a stop to board · times are estimates</Text>
+      </View>
       {stops.map((stop, index) => {
         const isCurrentStop = stop.stop_id === bus?.current_stop_id;
+        const stopEta = stopEtas[stop.stop_id];
+        const arrivalLabel = !bus
+          ? ''
+          : isCurrentStop
+            ? 'Bus here now'
+            : currentStopSequence != null && stop.sequence < currentStopSequence
+              ? 'Passed'
+              : stopEta?.eta_minutes != null
+                ? `ETA ${stopEta.arrival_time || 'unavailable'}`
+                : stopEta?.error
+                  ? 'ETA unavailable'
+                  : stopEta
+                    ? 'ETA unavailable'
+                    : 'Calculating ETA';
+        const isSource = stop.stop_id === firstStopId;
+        const isDestination = stop.stop_id === lastStopId;
+        const isBoardingStop = stop.stop_id === boardingStopId;
+        const distanceFromSource = Number(stop.distance_km) - sourceDistance;
+        const distanceLabel = distanceFromSource < 0
+          ? `${Math.abs(distanceFromSource).toFixed(1)} km before source`
+          : `${distanceFromSource.toFixed(1)} km from source`;
+        const endpointLabel = isSource ? 'START' : isDestination ? 'END' : '';
         return (
-          <View key={stop.stop_id} style={styles.progressStop}>
-            <View style={styles.progressTrack}>
-              {isCurrentStop ? (
-                <Text accessibilityLabel={`${bus.bus_registration} is at ${stop.stop_name}`} style={styles.progressBus}>🚌</Text>
-              ) : null}
-              <View style={[styles.progressDot, isCurrentStop && styles.progressDotCurrent]} />
-              {index < stops.length - 1 ? <View style={styles.progressConnector} /> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${stop.stop_name}, ${endpointLabel || `stop ${stop.sequence || index + 1}`}${isCurrentStop ? ', bus here' : ''}${isBoardingStop ? ', selected boarding stop' : ', select as boarding stop'}`}
+            accessibilityState={{ selected: isBoardingStop }}
+            key={stop.stop_id}
+            onPress={() => onSelectStop(stop.stop_id)}
+            style={[styles.progressStop, isBoardingStop && styles.progressStopSelected]}
+          >
+            <View style={styles.progressStep}>
+              <Text style={styles.progressStepText}>{String(stop.sequence).padStart(2, '0')}</Text>
             </View>
-            <Text numberOfLines={1} style={styles.progressName}>{stop.stop_name}</Text>
-            <Text style={styles.progressDistance}>{stop.distance_km} km</Text>
-            {stop.stop_id === sourceStopId ? <Text style={styles.progressSource}>SOURCE</Text> : null}
-            {isCurrentStop ? <Text style={styles.progressCurrent}>BUS HERE</Text> : null}
-          </View>
+            <View style={styles.progressRail}>
+              {index > 0 ? <View style={styles.progressConnectorTop} /> : null}
+              {index < stops.length - 1 ? <View style={styles.progressConnectorBottom} /> : null}
+              <View style={[styles.progressDot, isSource && styles.progressDotSource, isCurrentStop && styles.progressDotCurrent]} />
+              {isCurrentStop ? <Text style={styles.progressBus}>🚌</Text> : null}
+            </View>
+            <View style={styles.progressCopy}>
+              <Text numberOfLines={1} style={styles.progressName}>{stop.stop_name}</Text>
+              <Text style={styles.progressDistance}>
+                {distanceLabel}{isCurrentStop ? ' · Bus here' : ''}
+              </Text>
+              {arrivalLabel ? <Text style={styles.progressArrival}>{arrivalLabel}</Text> : null}
+            </View>
+            <Text style={styles.progressStatus}>{isBoardingStop ? 'BOARDING' : endpointLabel}</Text>
+          </Pressable>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -166,11 +445,14 @@ export default function App() {
   const [selectedBusId, setSelectedBusId] = useState('');
   const [busesLoaded, setBusesLoaded] = useState(false);
   const [etas, setEtas] = useState({});
+  const [stopEtas, setStopEtas] = useState({});
   const [loadingRoutes, setLoadingRoutes] = useState(true);
   const [loadingStops, setLoadingStops] = useState(true);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [apiError, setApiError] = useState('');
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [loginVisible, setLoginVisible] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   const loadRoutes = useCallback(async (search = '', originId = '', destinationId = '') => {
     setLoadingRoutes(true);
@@ -273,20 +555,29 @@ export default function App() {
   }, [selectedRoute, destinationStopId]);
 
   useEffect(() => {
-    if (!selectedStopId || buses.length === 0) {
+    if (!selectedStopId || buses.length === 0 || !routeDetail) {
       setEtas({});
       return undefined;
     }
     let active = true;
     Promise.all(
       buses.map(async (bus) => {
+        const journey = getJourneyProgress(
+          bus,
+          routeDetail.route_stops,
+          selectedStopId,
+          destinationStopId,
+        );
+        if (!journey.targetStopId) {
+          return [bus.bus_id, { ...journey, eta_minutes: null }];
+        }
         try {
           const eta = await apiRequest(
-            `buses/${encodeURIComponent(bus.bus_id)}/eta/?stop_id=${encodeURIComponent(selectedStopId)}`,
+            `buses/${encodeURIComponent(bus.bus_id)}/eta/?stop_id=${encodeURIComponent(journey.targetStopId)}`,
           );
-          return [bus.bus_id, eta];
+          return [bus.bus_id, { ...eta, target_stop_id: journey.targetStopId }];
         } catch (error) {
-          return [bus.bus_id, { error: error.message }];
+          return [bus.bus_id, { error: error.message, target_stop_id: journey.targetStopId }];
         }
       }),
     ).then((results) => {
@@ -295,22 +586,102 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [buses, selectedStopId]);
+  }, [buses, selectedStopId, routeDetail, destinationStopId]);
 
   const selectedBus = buses.find((bus) => bus.bus_id === selectedBusId) || null;
   const isDemoData = routeDetail?.data_source !== 'live';
-  const destinationIndex = routeDetail?.route_stops.findIndex(
-    (stop) => stop.stop_id === destinationStopId,
-  ) ?? -1;
-  const visibleStops = destinationIndex >= 0
-    ? routeDetail.route_stops.slice(0, destinationIndex + 1)
-    : routeDetail?.route_stops || [];
+  const selectedBusEta = selectedBus ? etas[selectedBus.bus_id] : null;
+  const selectedJourney = getJourneyProgress(
+    selectedBus,
+    routeDetail?.route_stops || [],
+    selectedStopId,
+    destinationStopId,
+  );
+  const arrivalTime = formatArrivalTime(selectedBusEta);
+  const etaTargetStop = routeDetail?.route_stops?.find(
+    (stop) => stop.stop_id === selectedBusEta?.target_stop_id,
+  );
+  const arrivalDetail = selectedBusEta?.eta_minutes != null && etaTargetStop
+    ? `About ${formatEtaDuration(selectedBusEta.eta_minutes)} to ${etaTargetStop.stop_name}`
+    : '';
+  const arrivalLabel = arrivalTime
+    || (selectedJourney.state === 'arrived'
+      ? 'Trip complete'
+      : selectedJourney.state === 'passed'
+        ? 'Destination passed'
+        : selectedJourney.state === 'at_source'
+          ? 'At your boarding stop'
+          : 'Arrival time unavailable');
   const originIndex = routeDetail?.route_stops.findIndex(
     (stop) => stop.stop_id === originStopId,
   ) ?? -1;
-  const boardingStops = destinationIndex >= 0
-    ? routeDetail.route_stops.slice(Math.max(0, originIndex), destinationIndex + 1)
-    : routeDetail?.route_stops || [];
+  const destinationIndex = routeDetail?.route_stops.findIndex(
+    (stop) => stop.stop_id === destinationStopId,
+  ) ?? -1;
+  const routeStartIndex = originIndex >= 0 ? originIndex : 0;
+  const routeEndIndex = destinationIndex >= 0
+    ? destinationIndex
+    : (routeDetail?.route_stops?.length || 0) - 1;
+  const currentStopIndex = routeDetail?.route_stops?.findIndex(
+    (stop) => stop.stop_id === selectedBus?.current_stop_id,
+  ) ?? -1;
+  const visibleStartIndex = currentStopIndex >= 0 && currentStopIndex < routeStartIndex
+    ? currentStopIndex
+    : routeStartIndex;
+  const visibleStops = routeEndIndex >= visibleStartIndex
+    ? routeDetail?.route_stops?.slice(visibleStartIndex, routeEndIndex + 1) || []
+    : [];
+  const currentStopSequence = routeDetail?.route_stops?.find(
+    (stop) => stop.stop_id === selectedBus?.current_stop_id,
+  )?.sequence ?? null;
+
+  useEffect(() => {
+    if (!selectedBus || !routeDetail?.route_stops?.length) {
+      setStopEtas({});
+      return undefined;
+    }
+
+    const routeStops = routeDetail.route_stops;
+    const currentStopIndex = routeStops.findIndex((stop) => stop.stop_id === selectedBus.current_stop_id);
+    const segmentStops = routeStops.slice(visibleStartIndex, routeEndIndex + 1);
+    if (currentStopIndex < 0) {
+      setStopEtas(Object.fromEntries(segmentStops.map((stop) => [stop.stop_id, { error: 'Bus position unavailable' }])));
+      return undefined;
+    }
+
+    const upcomingStops = segmentStops.filter(
+      (stop) => routeStops.findIndex((routeStop) => routeStop.stop_id === stop.stop_id) > currentStopIndex,
+    );
+    if (!upcomingStops.length) {
+      setStopEtas({});
+      return undefined;
+    }
+
+    let active = true;
+    setStopEtas({});
+    Promise.all(
+      upcomingStops.map(async (stop) => {
+        try {
+          const eta = await apiRequest(
+            `buses/${encodeURIComponent(selectedBus.bus_id)}/eta/?stop_id=${encodeURIComponent(stop.stop_id)}`,
+          );
+          return [stop.stop_id, { ...eta, arrival_time: formatArrivalTime(eta) }];
+        } catch (error) {
+          return [stop.stop_id, { error: error.message }];
+        }
+      }),
+    ).then((entries) => {
+      if (active) setStopEtas(Object.fromEntries(entries));
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    selectedBus,
+    routeDetail?.route_stops,
+    visibleStartIndex,
+    routeEndIndex,
+  ]);
 
   const searchRoutes = async () => {
     if (Boolean(originStopId) !== Boolean(destinationStopId)) {
@@ -330,6 +701,21 @@ export default function App() {
     }
   };
 
+  const handleAccountPress = async () => {
+    if (!authenticated) {
+      setLoginVisible(true);
+      return;
+    }
+    try {
+      const { csrf_token: csrfToken } = await apiRequest('auth/csrf/');
+      await apiPost('auth/logout/', {}, csrfToken);
+      setAuthenticated(false);
+      setApiError('');
+    } catch (error) {
+      setApiError(error.message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f4f8f6" />
@@ -339,6 +725,9 @@ export default function App() {
             <View style={styles.brandMark}><Text style={styles.brandMarkText}>s</Text></View>
             <Text style={styles.brand}>Swayam Yatri</Text>
           </View>
+          <Pressable accessibilityRole="button" onPress={handleAccountPress} style={styles.accountButton}>
+            <Text style={styles.accountButtonText}>{authenticated ? 'Sign out' : 'Sign in'}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.intro}>
@@ -403,36 +792,82 @@ export default function App() {
         {selectedRoute && (
           <View style={[styles.routePanel, windowWidth >= 760 && styles.routePanelWide]}>
             <View style={styles.routeHeading}>
-              <View>
+              <View style={styles.routeHeadingCopy}>
                 <Text style={styles.sectionTitle}>{selectedRoute.route_name}</Text>
                 <Text style={styles.muted}>{selectedRoute.stop_count} stops · {isDemoData ? `${buses.length} demo bus examples` : `${buses.length} bus${buses.length === 1 ? '' : 'es'} running`}</Text>
               </View>
-              {lastRefresh && <Text style={styles.updated}>{formatUpdated(lastRefresh)}</Text>}
+              <View style={styles.routeMeta}>
+                <View style={[styles.dataBadge, isDemoData && styles.dataBadgeDemo]}>
+                  <Text style={[styles.dataBadgeText, isDemoData && styles.dataBadgeTextDemo]}>
+                    {isDemoData ? 'DEMO DATA' : 'LIVE DATA'}
+                  </Text>
+                </View>
+              </View>
             </View>
-
             {loadingRoute ? <ActivityIndicator color="#087e75" /> : null}
             {routeDetail && (
               <>
-                <View style={styles.demoNotice}>
-                  <Text style={styles.demoNoticeText}>DEMO DATA · Bus locations and ETAs are illustrative, not live service information.</Text>
-                </View>
-                <Text style={styles.fieldLabel}>Journey stops · selected bus position</Text>
-                <RouteProgress stops={visibleStops} bus={selectedBus} sourceStopId={originStopId} />
+                <Text style={styles.fieldLabel}>Route progress</Text>
+                <RouteProgress
+                  stops={visibleStops}
+                  bus={selectedBus}
+                  sourceStopId={originStopId}
+                  destinationStopId={destinationStopId}
+                  boardingStopId={selectedStopId}
+                  currentStopSequence={currentStopSequence}
+                  stopEtas={stopEtas}
+                  onSelectStop={setSelectedStopId}
+                />
+
+                {selectedBus && (
+                  <View style={[styles.busStatusCard, isDemoData && styles.busStatusDemo]}>
+                    <View style={styles.busStatusHeading}>
+                      <Text style={styles.busStatusIcon}>🚌</Text>
+                      <View style={styles.busStatusIdentity}>
+                        <Text style={styles.busStatusEyebrow}>Selected bus</Text>
+                        <Text style={styles.busStatusRegistration}>{selectedBus.bus_registration}</Text>
+                      </View>
+                      <View style={[styles.busStatusBadge, isDemoData && styles.busStatusBadgeDemo, selectedBus.is_stale && styles.busStatusBadgeStale]}>
+                        <Text style={[styles.busStatusBadgeText, isDemoData && styles.busStatusBadgeTextDemo, selectedBus.is_stale && styles.busStatusBadgeTextStale]}>
+                          {isDemoData ? 'Demo data' : selectedBus.is_stale ? 'Signal may be old' : 'Status available'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.busStatusArrivalPanel}>
+                      <Text style={styles.busStatusArrivalLabel}>{selectedJourney.label}</Text>
+                      <Text style={[styles.busStatusArrival, isDemoData && styles.busStatusArrivalDemo]}>
+                        {arrivalLabel}
+                      </Text>
+                      {arrivalDetail ? <Text style={styles.busStatusArrivalDetail}>{arrivalDetail}</Text> : null}
+                    </View>
+                    <View style={styles.busStatusLocationRow}>
+                      <Text style={styles.busStatusLocationMarker}>●</Text>
+                      <View>
+                        <Text style={styles.busStatusLocationLabel}>Bus is currently at</Text>
+                        <Text style={styles.busStatusLocation}>{selectedBus.current_stop_name}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.busStatusFooter}>
+                      <Text style={styles.busStatusFooterText}>Speed <Text style={styles.busStatusFooterStrong}>{selectedBus.speed_kmh} km/h</Text></Text>
+                      {lastRefresh && <Text style={styles.busStatusFooterText}>Last checked {formatUpdated(lastRefresh)}</Text>}
+                    </View>
+                    {isDemoData && <Text style={styles.busStatusNote}>Example position and arrival estimate — not a live update.</Text>}
+                  </View>
+                )}
 
                 {busesLoaded && buses.length === 0 && (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyTitle}>{isDemoData ? 'No demo bus examples match' : 'No active bus reported'}</Text>
-                    <Text style={styles.muted}>{isDemoData ? 'No scheduled timetable is available in this demo.' : 'Showing route stops while live service data is unavailable.'}</Text>
+                    <Text style={styles.muted}>{isDemoData ? 'This demo has no scheduled timetable.' : 'Route stops remain available while bus data is unavailable.'}</Text>
                   </View>
                 )}
                 {buses.length > 0 && (
                   <View style={styles.activeBusHeading}>
-                    <Text style={styles.fieldLabel}>{isDemoData ? 'Demo bus examples' : 'Buses running now'}</Text>
-                    <Text style={styles.muted}>Choose a bus to show its {isDemoData ? 'example' : 'current'} stop</Text>
+                    <Text style={styles.fieldLabel}>{buses.length > 1 ? 'Other buses on this route' : 'Bus on this route'}</Text>
+                    <Text style={styles.muted}>Tap a bus to view its status</Text>
                   </View>
                 )}
                 {buses.map((bus) => {
-                  const eta = etas[bus.bus_id];
                   return (
                     <Pressable
                       accessibilityRole="button"
@@ -444,32 +879,17 @@ export default function App() {
                       <Text style={styles.activeBusIcon}>🚌</Text>
                       <View style={styles.activeBusCopy}>
                         <Text style={styles.activeBusRegistration}>{bus.bus_registration}</Text>
-                        <Text style={styles.activeBusStop}>At {bus.current_stop_name}</Text>
+                        <Text style={styles.activeBusStop}>Currently at {bus.current_stop_name}</Text>
                       </View>
-                      <View style={styles.activeBusEta}>
-                        <Text style={styles.activeBusEtaValue}>{eta?.eta_minutes == null ? 'ETA —' : `${eta.eta_minutes} min`}</Text>
-                        <Text style={styles.activeBusSpeed}>{bus.speed_kmh} km/h</Text>
+                      <View style={styles.busSelectorMeta}>
+                        <Text style={[styles.busSelectionLabel, bus.bus_id === selectedBusId && styles.busSelectionLabelSelected]}>
+                          {bus.bus_id === selectedBusId ? 'Selected' : 'View status'}
+                        </Text>
                       </View>
                     </Pressable>
                   );
                 })}
                 {!busesLoaded && !apiError ? <ActivityIndicator color="#357764" /> : null}
-
-                <Text style={styles.fieldLabel}>Choose your boarding stop</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stopRow}>
-                  {boardingStops.map((stop) => (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={stop.stop_id}
-                      onPress={() => setSelectedStopId(stop.stop_id)}
-                      style={[styles.stopChip, stop.stop_id === selectedStopId && styles.stopChipSelected]}
-                    >
-                      <Text style={[styles.stopChipText, stop.stop_id === selectedStopId && styles.stopChipTextSelected]}>
-                        {stop.stop_name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
 
                 <View style={styles.bottomInfo}>
                   <View style={styles.infoCard}>
@@ -480,16 +900,7 @@ export default function App() {
                       <Text style={styles.infoCaption}>{routeDetail.fare_rule ? `₹${routeDetail.fare_rule.per_km_rate} per km · demo fare` : 'No fare rule provided'}</Text>
                     </View>
                   </View>
-                  <View style={styles.infoCard}>
-                    <Text style={styles.infoIcon}>◷</Text>
-                    <View style={styles.infoCopy}>
-                      <Text style={styles.infoLabel}>{isDemoData ? 'ILLUSTRATIVE ETA' : 'BUS ARRIVAL'}</Text>
-                      <Text style={styles.infoValue}>{selectedBus ? `${selectedBus.bus_registration}: ${etas[selectedBus.bus_id]?.eta_minutes == null ? 'ETA unavailable' : `${etas[selectedBus.bus_id].eta_minutes} min`}` : isDemoData ? 'No matching demo bus' : 'Waiting for an active bus'}</Text>
-                      <Text style={styles.infoCaption}>{selectedBus ? `${isDemoData ? 'Example estimate' : 'To'} ${routeDetail.route_stops.find((stop) => stop.stop_id === selectedStopId)?.stop_name || 'your stop'} · ${selectedBus.speed_kmh} km/h` : isDemoData ? 'Demo fixture data only' : 'No live bus currently active'}</Text>
-                    </View>
-                  </View>
                 </View>
-                <Text style={styles.refreshNote}>Bus list refreshes every 10 seconds. This demo API returns fixture data.</Text>
               </>
             )}
           </View>
@@ -519,7 +930,9 @@ export default function App() {
               <View style={styles.routeBadge}><Text style={styles.routeBadgeText}>{route.route_id.replace('route-', '')}</Text></View>
               <View style={styles.routeCopy}>
                 <Text style={styles.routeName}>{route.route_name}</Text>
-                <Text style={styles.muted}>{route.active_bus_count} {route.active_bus_count === 1 ? 'bus' : 'buses'} · {route.stop_count} stops</Text>
+                <Text style={styles.muted}>
+                  {isDemoData ? `${route.active_bus_count} bus examples` : `${route.active_bus_count} ${route.active_bus_count === 1 ? 'bus' : 'buses'}`} · {route.stop_count} stops
+                </Text>
               </View>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
@@ -550,6 +963,11 @@ export default function App() {
         <View style={styles.bottomNavItem}><Text style={styles.bottomNavIcon}>⌖</Text><Text style={styles.bottomNavText}>Explore</Text></View>
         <View style={styles.bottomNavItem}><Text style={styles.bottomNavIcon}>▤</Text><Text style={styles.bottomNavText}>Info</Text></View>
       </View>
+      <PhoneLoginModal
+        onAuthenticated={() => { setAuthenticated(true); setLoginVisible(false); }}
+        onClose={() => setLoginVisible(false)}
+        visible={loginVisible}
+      />
     </SafeAreaView>
   );
 }
@@ -562,6 +980,8 @@ const styles = StyleSheet.create({
   brandMark: { width: 31, height: 31, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 10, borderTopRightRadius: 10, borderBottomRightRadius: 10, borderBottomLeftRadius: 3, backgroundColor: '#357764' },
   brandMarkText: { color: '#fff', fontFamily: 'Georgia', fontSize: 21, fontStyle: 'italic', fontWeight: '700' },
   brand: { color: '#20342f', fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  accountButton: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 10 },
+  accountButtonText: { color: '#285d4f', fontSize: 12, fontWeight: '800' },
   intro: { minHeight: 105, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 9 },
   introCopy: { flex: 1, minWidth: 0 },
   eyebrow: { color: '#357764', fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
@@ -624,26 +1044,33 @@ const styles = StyleSheet.create({
   routeName: { color: '#20342f', fontSize: 12, fontWeight: '800' },
   chevron: { color: '#357764', fontSize: 24, paddingHorizontal: 5 },
   routeHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  updated: { color: '#628875', fontSize: 9, textAlign: 'right' },
-  demoNotice: { backgroundColor: '#fff4e8', borderRadius: 9, padding: 10 },
-  demoNoticeText: { color: '#a56a2c', fontSize: 11, fontWeight: '700', lineHeight: 16 },
+  routeHeadingCopy: { flex: 1, minWidth: 0 },
+  routeMeta: { alignItems: 'flex-end', gap: 5 },
+  dataBadge: { backgroundColor: '#eaf3ec', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5 },
+  dataBadgeDemo: { backgroundColor: '#fff0dc' },
+  dataBadgeText: { color: '#285d4f', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  dataBadgeTextDemo: { color: '#95622f' },
   fieldLabel: { color: '#20342f', fontSize: 12, fontWeight: '800', marginTop: 3 },
-  progressRow: { backgroundColor: '#f5f8f4', borderColor: '#e4eae4', borderRadius: 10, borderWidth: 1, minHeight: 154, paddingHorizontal: 12, paddingTop: 43, paddingBottom: 10 },
-  progressStop: { width: 120 },
-  progressTrack: { alignItems: 'center', flexDirection: 'row', height: 17 },
-  progressDot: { backgroundColor: '#fff', borderColor: '#7da38a', borderRadius: 7, borderWidth: 3, height: 14, width: 14, zIndex: 1 },
-  progressDotCurrent: { backgroundColor: '#357764', borderColor: '#357764' },
-  progressConnector: { backgroundColor: '#c8d8cb', flex: 1, height: 3 },
-  progressBus: { bottom: 20, fontSize: 19, left: -8, position: 'absolute', zIndex: 2 },
-  progressName: { color: '#20342f', fontSize: 10, fontWeight: '800', marginTop: 8, maxWidth: 110 },
+  progressPanel: { backgroundColor: '#f5f8f4', borderColor: '#e4eae4', borderRadius: 10, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 9 },
+  progressHeading: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, paddingHorizontal: 5, paddingBottom: 5 },
+  progressTitle: { color: '#20342f', fontSize: 11, fontWeight: '800' },
+  progressSubtitle: { color: '#788780', fontSize: 9 },
+  progressStop: { alignItems: 'stretch', borderColor: 'transparent', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 7, minHeight: 59, paddingHorizontal: 5 },
+  progressStopSelected: { backgroundColor: '#fff', borderColor: '#d7e7dc' },
+  progressStep: { alignItems: 'flex-start', justifyContent: 'center', width: 28 },
+  progressStepText: { color: '#73827a', fontSize: 9, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  progressRail: { alignItems: 'center', justifyContent: 'center', position: 'relative', width: 18 },
+  progressConnectorTop: { backgroundColor: '#b9d1c0', bottom: '50%', left: 7, position: 'absolute', top: 0, width: 3 },
+  progressConnectorBottom: { backgroundColor: '#b9d1c0', bottom: 0, left: 7, position: 'absolute', top: '50%', width: 3 },
+  progressDot: { backgroundColor: '#fff', borderColor: '#7da38a', borderRadius: 7, borderWidth: 3, height: 13, width: 13, zIndex: 1 },
+  progressDotSource: { borderColor: '#357764' },
+  progressDotCurrent: { backgroundColor: '#357764', borderColor: '#fff', height: 14, width: 14 },
+  progressBus: { fontSize: 14, left: 12, position: 'absolute', top: '50%', transform: [{ translateY: -8 }], zIndex: 2 },
+  progressCopy: { flex: 1, justifyContent: 'center', minWidth: 0 },
+  progressName: { color: '#20342f', fontSize: 11, fontWeight: '800' },
   progressDistance: { color: '#788780', fontSize: 9, marginTop: 3 },
-  progressSource: { color: '#a76b35', fontSize: 9, fontWeight: '900', marginTop: 4 },
-  progressCurrent: { color: '#357764', fontSize: 8, fontWeight: '900', marginTop: 4 },
-  stopRow: { gap: 8, paddingVertical: 3 },
-  stopChip: { backgroundColor: '#fff', borderColor: '#e8ede8', borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
-  stopChipSelected: { backgroundColor: '#357764', borderColor: '#357764' },
-  stopChipText: { color: '#34443d', fontSize: 11, fontWeight: '700' },
-  stopChipTextSelected: { color: '#fff' },
+  progressArrival: { color: '#26755e', fontSize: 9, fontWeight: '800', marginTop: 3 },
+  progressStatus: { alignSelf: 'center', color: '#357764', fontSize: 7, fontWeight: '900', textAlign: 'right', width: 52 },
   emptyState: { backgroundColor: '#fff7f4', borderColor: '#f1d8d1', borderWidth: 1, borderRadius: 9, padding: 11 },
   emptyTitle: { color: '#20342f', fontSize: 11, fontWeight: '800' },
   emptyStateText: { color: '#788780', fontSize: 12, lineHeight: 18, padding: 12 },
@@ -654,9 +1081,35 @@ const styles = StyleSheet.create({
   activeBusCopy: { flex: 1 },
   activeBusRegistration: { color: '#20342f', fontSize: 11, fontWeight: '800' },
   activeBusStop: { color: '#788780', fontSize: 9, marginTop: 3 },
-  activeBusEta: { alignItems: 'flex-end' },
-  activeBusEtaValue: { color: '#20342f', fontSize: 11, fontWeight: '800' },
-  activeBusSpeed: { color: '#788780', fontSize: 9, marginTop: 3 },
+  busSelectorMeta: { alignItems: 'flex-end' },
+  busSelectionLabel: { color: '#788780', fontSize: 9, fontWeight: '700' },
+  busSelectionLabelSelected: { color: '#357764' },
+  busStatusCard: { borderColor: '#dce8df', borderWidth: 1, borderRadius: 11, backgroundColor: '#f5faf6', padding: 12 },
+  busStatusDemo: { borderColor: '#efdfc8', backgroundColor: '#fff8ef' },
+  busStatusHeading: { alignItems: 'center', flexDirection: 'row', gap: 9 },
+  busStatusIcon: { width: 38, height: 38, borderRadius: 11, overflow: 'hidden', backgroundColor: '#e4f0e7', fontSize: 21, lineHeight: 38, textAlign: 'center' },
+  busStatusIdentity: { flex: 1, minWidth: 0 },
+  busStatusEyebrow: { color: '#788780', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  busStatusRegistration: { color: '#20342f', fontSize: 13, fontWeight: '900', marginTop: 3 },
+  busStatusBadge: { backgroundColor: '#eaf3ec', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 6 },
+  busStatusBadgeDemo: { backgroundColor: '#fff0dc' },
+  busStatusBadgeStale: { backgroundColor: '#fff0dc' },
+  busStatusBadgeText: { color: '#285d4f', fontSize: 7, fontWeight: '900', letterSpacing: 0.35 },
+  busStatusBadgeTextDemo: { color: '#95622f' },
+  busStatusBadgeTextStale: { color: '#95622f' },
+  busStatusArrivalPanel: { borderColor: '#e8eee9', borderWidth: 1, borderRadius: 9, backgroundColor: '#ffffffd9', marginTop: 11, padding: 12 },
+  busStatusArrivalLabel: { color: '#788780', fontSize: 10, fontWeight: '700' },
+  busStatusArrival: { color: '#285d4f', fontSize: 23, fontWeight: '900', lineHeight: 28, marginTop: 3 },
+  busStatusArrivalDemo: { color: '#95622f' },
+  busStatusArrivalDetail: { color: '#788780', fontSize: 9, fontWeight: '700', marginTop: 4 },
+  busStatusLocationRow: { alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 10 },
+  busStatusLocationMarker: { color: '#357764', fontSize: 12 },
+  busStatusLocationLabel: { color: '#788780', fontSize: 9, fontWeight: '700' },
+  busStatusLocation: { color: '#20342f', fontSize: 11, fontWeight: '800', lineHeight: 15, marginTop: 2 },
+  busStatusFooter: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, marginTop: 9 },
+  busStatusFooterText: { color: '#788780', fontSize: 8 },
+  busStatusFooterStrong: { color: '#20342f', fontWeight: '900' },
+  busStatusNote: { color: '#95622f', fontSize: 8, lineHeight: 12, marginTop: 7 },
   bottomInfo: { gap: 8, marginTop: 2 },
   infoCard: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10, borderColor: '#e7ece8', borderWidth: 1, borderRadius: 9, backgroundColor: '#fff', padding: 10 },
   infoIcon: { width: 32, height: 32, borderRadius: 9, overflow: 'hidden', backgroundColor: '#e8f1ec', color: '#357764', fontSize: 17, fontWeight: '800', lineHeight: 32, textAlign: 'center' },
@@ -664,8 +1117,19 @@ const styles = StyleSheet.create({
   infoLabel: { color: '#788780', fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
   infoValue: { color: '#20342f', fontSize: 11, fontWeight: '800', marginTop: 3 },
   infoCaption: { color: '#788780', fontSize: 9, marginTop: 3 },
-  refreshNote: { color: '#788780', fontSize: 9, textAlign: 'center', paddingHorizontal: 8 },
   panel: { backgroundColor: '#fff', borderColor: '#dce6e2', borderRadius: 16, borderWidth: 1, gap: 9, padding: 15 },
+  loginModalBackdrop: { flex: 1, justifyContent: 'center', backgroundColor: '#20342f88', padding: 18 },
+  loginModalCard: { width: '100%', maxWidth: 440, alignSelf: 'center', borderColor: '#e7ece8', borderWidth: 1, borderRadius: 16, backgroundColor: '#fff', padding: 20 },
+  loginModalClose: { width: 34, height: 34, alignSelf: 'flex-end', alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: '#e8f1ec' },
+  loginModalCloseText: { color: '#285d4f', fontSize: 23, lineHeight: 26 },
+  loginModalEyebrow: { color: '#357764', fontSize: 9, fontWeight: '900', letterSpacing: 1, marginTop: 4 },
+  loginModalTitle: { color: '#20342f', fontSize: 22, fontWeight: '800', marginTop: 10 },
+  loginModalCopy: { color: '#788780', fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 16 },
+  loginInputLabel: { color: '#20342f', fontSize: 11, fontWeight: '800', marginBottom: 6 },
+  loginInput: { minHeight: 46, borderColor: '#e8ede8', borderWidth: 1, borderRadius: 8, backgroundColor: '#fff', color: '#34443d', fontSize: 14, paddingHorizontal: 11 },
+  loginChangePhone: { alignSelf: 'flex-start', paddingVertical: 8 },
+  loginChangePhoneText: { color: '#285d4f', fontSize: 11, fontWeight: '800' },
+  loginDevNote: { color: '#788780', fontSize: 10, lineHeight: 15, marginTop: 12 },
   errorText: { color: '#b33f35', fontSize: 13, fontWeight: '700', lineHeight: 19 },
   successText: { color: '#087e75', fontSize: 12, lineHeight: 17 },
   loader: { marginVertical: 5 },

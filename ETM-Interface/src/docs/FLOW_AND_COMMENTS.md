@@ -1,5 +1,7 @@
 # ETM Interface Flow Diagram
 
+This is a high-level flow reference, not a security guarantee. The current backend authorization and ETM transport findings are tracked in the repository [security review](../../../testing.md).
+
 ```mermaid
 graph TD
 	A[App.js\nBootstraps Provider, NavigationContainer, theme, and RootNavigator] --> B[RootNavigator.js\nReads appNavigationFlow and appScreenRegistry]

@@ -2,6 +2,8 @@
 
 A live public transport tracking and ticketing backend built with **Django**, **Django REST Framework**, and **PostgreSQL + PostGIS**.
 
+> **Security warning:** The 2026-11-27 review found operational/admin API views without authentication or authorization, an employee-ID-only login, and unsafe fallback deployment settings. Do not expose this backend to untrusted networks or use it operationally until these findings are fixed. See the repository [`testing.md`](../testing.md).
+
 ---
 
 ## Tech Stack
@@ -40,7 +42,7 @@ python manage.py migrate
 python manage.py createsuperuser
 
 # 7. Start the development server
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver 127.0.0.1:8000
 ```
 
 ---
@@ -87,7 +89,7 @@ copy .env.example .env
 # Edit .env in Notepad with your PostgreSQL password
 
 python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver 127.0.0.1:8000
 ```
 
 ---
@@ -96,8 +98,8 @@ python manage.py runserver 0.0.0.0:8000
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `SECRET_KEY` | Django secret key | (insecure default) |
-| `DEBUG` | Enable debug mode | `True` |
+| `SECRET_KEY` | Django signing key; set a unique secret outside source control | Current fallback is unsafe |
+| `DEBUG` | Enable debug mode; must be disabled in production | Current default is `True` |
 | `DB_NAME` | PostgreSQL database name | `trixul_db` |
 | `DB_USER` | PostgreSQL user | `trixul_admin` |
 | `DB_PASSWORD` | PostgreSQL password | *(empty)* |
@@ -105,6 +107,7 @@ python manage.py runserver 0.0.0.0:8000
 | `DB_PORT` | PostgreSQL port | `5432` |
 | `CACHE_BACKEND` | Cache backend class | `locmem` (no Redis needed) |
 | `CACHE_URL` | Redis URL (if using Redis) | `redis://127.0.0.1:6379/1` |
+| `ALLOWED_HOSTS` / CORS | Restrict accepted hosts and browser origins | Current fallback is permissive; configure explicitly |
 
 ---
 
@@ -112,10 +115,12 @@ python manage.py runserver 0.0.0.0:8000
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| `POST` | `/api/v1/auth/login/` | Login with emp_id, receive JWT | No |
-| `GET` | `/api/v1/routes/<route_id>/` | Fetch route stops and fares | No |
-| `POST` | `/api/v1/telemetry/heartbeat/` | Send live GPS location | JWT |
-| `POST` | `/api/v1/ticketing/issue/` | Issue and log a ticket | JWT |
+| `POST` | `/api/v1/auth/login/` | Login with emp_id, receive JWT | No credential beyond employee ID |
+| `GET` | `/api/v1/routes/<route_id>/` | Fetch route stops and fares | Public |
+| `POST` | `/api/v1/telemetry/heartbeat/` | Send live GPS location | Currently lacks effective view permission checks |
+| `POST` | `/api/v1/ticketing/issue/` | Issue and log a ticket | Currently lacks effective view permission checks |
+
+The table reflects the reviewed implementation, not a recommended access-control design. Do not send real operational, employee, or financial data until authentication, authorization, and ownership checks are implemented.
 
 ---
 

@@ -14,6 +14,7 @@ export default function HomePage() {
           <span className="brand-mark">s</span>
           <span>Swayam Yatri</span>
         </Link>
+        <Link className="quiet-link" href="/login">Sign in</Link>
       </header>
 
       <section className="welcome-hero">

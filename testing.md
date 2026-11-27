@@ -1,16 +1,30 @@
-# TRIXUL Monorepo Audit and Test Report
+# TRIXUL Security Review and Test Report
 
 ## Overview
 
-This is a read-only audit of the TRIXUL repository at `E:\CODES\PublicRepo\Trixual`, including the Django/PostGIS backend, Express ETM backend, Admin Dashboard, ETM Interface, and the isolated `User_Swaym-Yatri` commuter platform.
+This report records the read-only security review completed on 2026-11-27 and preserves an earlier full-repository baseline audit. The latest review covered the main Django backend, Express telemetry service, Admin and ETM client API handling, and the isolated Swayam Yatri OTP/API/client flows. Findings from the earlier audit are retained below as historical until revalidated.
 
-The audit inspected source, routing, serializers, service logic, configuration, dependency manifests, documentation, and existing tests. No application files were changed, no database was accessed, no tests or builds that could mutate project state were run, and no dependency audit contacted external services. The only file created by this audit is this report.
+No application code was changed as part of this review. Deployment reachability and runtime exploitability were not tested.
 
-Local `.env` files were checked only for Git tracking status; their contents and values were not displayed. The checked local environment files are untracked.
+## Latest Security Review — 2026-11-27
 
-## Executive Summary
+The review identified three actionable vulnerabilities across the reviewed code and two confirmed concerns outside the changed lines. The reviewer found no actionable issue in the isolated Swayam Yatri OTP/CSRF/CORS/session/public API and clients, and no actionable dependency supply-chain issue in the reviewed manifests and lockfiles. No Admin Dashboard-specific client vulnerability was confirmed.
 
-**Overall risk: CRITICAL.** The primary backend exposes administrative operations without authentication, and its login endpoint issues employee JWTs based only on an employee ID. An unauthenticated caller can alter operational data and financial records. Production settings also have unsafe defaults. Separate high-risk issues include an unauthenticated telemetry server, a commuter API that explicitly serves demo data as if it were current, and unresolved Git conflict markers that prevent ETM source parsing.
+| # | Severity | File | Lines | Vulnerability | Confidence |
+|---|----------|------|-------|---------------|------------|
+| 1 | 🔴 CRITICAL | `Backend/core/serializers.py` | 13-21 | Conductor login accepts an employee ID alone and issues JWTs, enabling impersonation when an ID is known or guessed. This was confirmed as a repository concern outside the changed lines. | Not scored by reviewer |
+| 2 | 🟠 HIGH | `Backend/core/views.py`; `Backend/core/urls.py` | `views.py:57-89, 111-162, 216-274`; `urls.py:19-37` | Operational and admin APIs lack authentication and authorization. A network-reachable caller can read fleet/revenue data and create or alter operational records. | 9/10 |
+| 3 | 🟠 HIGH | `Backend/core/settings.py` | 13-23 | Fallback secret, `DEBUG=True`, wildcard hosts, and permissive CORS are unsafe defaults if active. The reviewer could not establish whether these defaults are active in deployment. | Code confirmed; deployment exposure unverified |
+| 4 | 🟡 MEDIUM | `Backend/index.js` | 51, 382-415 | Express telemetry accepts unauthenticated caller-selected bus IDs and coordinates, allowing a network-reachable caller to spoof displayed positions. The server binds to `0.0.0.0` by default. | 9/10 |
+| 5 | 🟡 MEDIUM | `ETM-Interface/scripts/update-env.js`; `ETM-Interface/src/services/api.js` | `update-env.js:22-23`; `api.js:46-48, 78-83` | ETM LAN configuration uses HTTP while transmitting/storing JWTs. An attacker on an untrusted LAN could observe or modify traffic and capture bearer tokens. | 8/10 |
+
+For findings 2 and 5, the latest reviewer did not provide a numeric severity/confidence score; the severity labels reflect the prior baseline assessment where available. Finding 5 is conditional on deployment configuration. These findings have not been remediated in this documentation-only task.
+
+## Historical Baseline Audit — Status Not Revalidated
+
+The following full-repository audit predates the latest review. Its evidence and recommendations are retained for traceability, but its findings and validation results were not rechecked during the 2026-11-27 review.
+
+**Historical overall risk: CRITICAL.** The prior audit reported unauthenticated administrative operations, ID-only employee token issuance, unsafe settings, an unauthenticated telemetry server, and additional ETM and commuter-platform concerns.
 
 | Severity | Count |
 |---|---:|
@@ -19,7 +33,7 @@ Local `.env` files were checked only for Git tracking status; their contents and
 | Medium | 3 |
 | Low | 0 |
 
-## Findings
+## Previous Baseline Findings
 
 ### F-01 — Critical: Administrative API has no authentication or authorization
 
@@ -117,7 +131,7 @@ Local `.env` files were checked only for Git tracking status; their contents and
 - **Recommendation:** Treat the present app as a clearly labeled prototype. Before production use, add real schedule and occupancy data contracts, implement a map using validated route geometry/telemetry, and only expose crowd indicators when backed by current passenger counts.
 - **Validation:** Confirmed by documentation and API contract inspection. UI acceptance tests were not run.
 
-## Executed Validation
+## Previous Baseline Validation
 
 | Check | Result | Notes |
 |---|---|---|
@@ -128,7 +142,7 @@ Local `.env` files were checked only for Git tracking status; their contents and
 | Test/build execution | **Not run** | Existing test scripts may write database state or build artifacts; ETM source is already syntactically invalid. |
 | Dependency vulnerability audit | **Not run** | No network audit or dependency installation was performed. |
 
-## Unverified Areas
+## Previous Baseline Unverified Areas
 
 - Production deployment settings, reverse proxy, firewall, TLS, and whether the development Express server is reachable outside a trusted network.
 - Database permissions, production data integrity, backups, retention, migrations, and PostGIS query behavior.
@@ -137,7 +151,7 @@ Local `.env` files were checked only for Git tracking status; their contents and
 - The main backend's existing endpoint test script was not run because it posts telemetry and creates ticket records.
 - No penetration testing or live requests were performed.
 
-## Prioritized Recommendations
+## Previous Baseline Recommendations
 
 1. **Immediately disable unauthenticated admin operations.** Add authentication and role-based authorization before exposing the API to any non-local network.
 2. **Replace ID-only login and enforce shift ownership.** Reject arbitrary or missing shift IDs; never silently associate writes with the first active shift.
@@ -147,6 +161,6 @@ Local `.env` files were checked only for Git tracking status; their contents and
 6. **Correct business metrics and availability behavior.** Use current onboard passenger counts, reliable live telemetry freshness, and an unavailable ETA state when data is insufficient.
 7. **Complete Stage 4A data and UI scope.** Implement real scheduled departures, map display, and crowd-sense data, or explicitly keep the commuter app labeled as a demo.
 
-## Final Risk Assessment
+## Previous Baseline Risk Assessment
 
-The repository is **not safe for production deployment** in its current state. The unauthenticated administrative control plane and ID-only token issuance are immediate critical risks. The unresolved ETM conflicts independently block a reliable ETM build. Commuter APIs and ETM flows also contain demo or fabricated data paths that can present incorrect operational information as live. Remediate the critical authentication/authorization issues and isolate demo services before any public or operational deployment.
+The prior audit concluded that the repository was **not safe for production deployment**. This latest review independently confirms unresolved access-control and transport concerns listed above. Do not expose the affected services to untrusted networks until the findings are remediated and deployment settings are verified.

@@ -4,7 +4,7 @@ This is the high-level, master tracking document for the entire TRIXUL platform.
 
 ---
 
-## Stage 1 & 2: The ETM Node & Central Brain (Status: 100% Complete)
+## Stage 1 & 2: The ETM Node & Central Brain (Feature Status: Complete; Security Work Open)
 The foundational data generator and database orchestrator.
 
 - [x] Lock in Django, PostgreSQL, and PostGIS 9-table schema.
@@ -19,7 +19,7 @@ The foundational data generator and database orchestrator.
 
 ---
 
-## Stage 3: Admin Command Center (Status: 100% Complete)
+## Stage 3: Admin Command Center (Feature Status: Complete; Security Work Open)
 The web-based operational hub for fleet management.
 
 - [x] Scaffold React 18 Admin Dashboard and connect to Django APIs.
@@ -34,15 +34,30 @@ The web-based operational hub for fleet management.
 
 ---
 
-## Stage 4: Public Passenger Platform (Commuter App)
-The commuter-facing application for real-time tracking.
+## Stage 4A: Swayam Yatri Commuter Prototype (In Progress)
+The current web and Expo clients are read-only for transit data and use a separate static-demo backend. This is not a live operational passenger service.
 
-- [ ] Scaffold React Native User App with Mapbox/Leaflet integration.
-- [ ] Build real-time map tracking to plot active bus locations based on ETM coordinates.
-- [ ] Implement Dynamic ETA calculations (starting with Distance/Speed math).
-- [ ] Build Real-Time Crowdedness Indicator (Green/Yellow/Red badge based on active ETM ticket counts versus the 56-seat limit).
-- [ ] Build Digital Boarding Pass system generating QR codes for passengers.
-- [ ] Add a Lost & Found reporting tab linked directly to specific ETM/Conductor IDs.
+- [x] Build Next.js web and Expo clients with route search and responsive commuter dashboard.
+- [x] Show ordered route stops, selected bus position, demo fare, and approximate ETA.
+- [x] Add a stop-by-stop timeline with boarding-stop status, clock-time estimates, and visibility of buses approaching from upstream.
+- [x] Add development-only phone OTP sign-in; guest browsing remains available.
+- [ ] Replace static fixtures with verified public schedules, fares, and current telemetry before live use.
+- [ ] Implement a geographic map and crowd-sense only when supported by real route geometry and current occupancy data.
+- [ ] Security-gate any non-local deployment and verify production authentication, authorization, TLS, and configuration.
+
+QR ticketing, payments, Lost & Found, and recommendations are out of scope for Stage 4A.
+
+---
+
+## Security Review — 2026-11-27
+
+- [x] Read-only review of the main Django API, Express telemetry service, Admin/ETM API handling, and isolated Swayam Yatri OTP/API/client flows.
+- [x] Document findings in [`testing.md`](./testing.md), including exact evidence and review limitations.
+- [ ] Remediate missing Django API authorization, unauthenticated Express telemetry, and ETM HTTP transport for LAN use.
+- [ ] Replace ID-only conductor token issuance and verify production Django settings before deployment.
+- [ ] Re-run security review and targeted tests after remediation.
+
+The review found no actionable issue in the isolated Swayam Yatri OTP flow or reviewed dependency manifests. No security fixes were made during this documentation update.
 
 ---
 

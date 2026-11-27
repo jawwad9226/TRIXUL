@@ -66,7 +66,7 @@ These are illustrative test fares. The current mock fare rules do not encode Mah
 
 ## Bus fixtures
 
-Bus current stops and speeds are static mock values. Each bus has a `current_stop_id` and `current_stop_name`; selecting that bus displays its icon at the corresponding stop on a simple route line. When a destination is chosen, the line shows all stops through that destination (including stops before the source so approaching buses can be located), and the live-bus endpoint excludes buses already past the destination. A bus currently at the destination is still eligible. `last_updated_at` is generated when the API responds; it does not mean the bus is transmitting live GPS.
+Bus current stops and speeds are static mock values. Each bus has a `current_stop_id` and `current_stop_name`; selecting that bus displays it at the corresponding stop on the timeline. When a destination is chosen, the timeline shows the selected journey through that destination. If the selected bus is upstream of the origin, the timeline extends back to its current stop; earlier stops before the bus's current stop are not shown. The bus-list endpoint excludes buses already past the destination; a bus at the destination is still eligible. `last_updated_at` is generated when the API responds and does not mean the bus is transmitting live GPS.
 
 | Bus ID | Registration | Route ID | Current stop | Speed |
 |---|---|---|---|---:|
@@ -91,7 +91,7 @@ The current bus fixture set supports positive ETA tests, but it does not contain
 
 ## Sign-in
 
-Sign-in is not included. The commuter website and Expo app are browse-only; no authentication endpoints are exposed.
+Development-only phone OTP endpoints are available under `/api/v1/public/auth/`. OTP delivery is through the backend console when `DEBUG=True`; this is a demo identity, not production authentication. Guests can still browse transit data.
 
 ## Local API test examples
 
@@ -131,6 +131,7 @@ python manage.py test transit.tests
 ## Test environment notes
 
 - The backend uses no persistent database for application records. Route, stop, bus, and fare data comes from Python fixtures.
-- Authentication is not part of this demo. All exposed commuter endpoints are read-only.
+- Transit data endpoints are read-only. The development OTP flow has POST endpoints and creates a demo session; it is not suitable for production accounts or sensitive data.
 - All transit API data is labelled `demo`. Do not treat coordinates, fares, or ETAs as real service information.
+- The 2026-11-27 review found no actionable issue in the isolated commuter API/auth flow or web/Expo clients. This does not make the static fixture data live or official.
 - Do not add actual card IDs, personal phone numbers, credentials, or other private data to this file.

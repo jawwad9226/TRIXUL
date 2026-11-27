@@ -2,6 +2,8 @@
 
 The rugged, offline-capable mobile interface built for state transit bus conductors. Replaces legacy mechanical ticket punchers and bulky thermal boxes with a unified Android/Web application powering rapid fare issuance, automated government concession deductions, 10-second GPS telemetry heartbeats, anti-bumping SOS emergency triggers, and end-of-shift cash/UPI reconciliation.
 
+> **Security warning:** The 2026-11-27 review found that the main Django API does not enforce access control on operational writes, the conductor login accepts an employee ID alone, and LAN setup sends JWT-bearing API traffic over HTTP. Do not use real credentials or operational data on untrusted networks. See [`testing.md`](../testing.md) before deployment.
+
 ---
 
 ## 📱 Features & Highlights
@@ -117,3 +119,5 @@ ETM-Interface/src/
 | `/api/v1/ticketing/shift/<id>/summary/` | `GET` | Retrieve live shift reconciliation and tickets from PostgreSQL |
 | `/api/v1/admin/incidents/` | `POST` / `GET` | Broadcast SOS / Retrieve active highway advisories |
 | `/api/v1/admin/fleet/` | `GET` | View other buses currently operating across the network |
+
+These are current integration paths, not a statement that the endpoints are securely authorized. In particular, do not treat client-side JWT handling as a substitute for server-side permissions or use plain HTTP outside a trusted local test network.

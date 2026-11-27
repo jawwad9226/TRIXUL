@@ -1,6 +1,18 @@
 from rest_framework import serializers
 
 
+class OtpRequestSerializer(serializers.Serializer):
+    phone_number = serializers.RegexField(
+        regex=r"^\+[1-9]\d{7,14}$",
+        max_length=16,
+        error_messages={"invalid": "Enter a phone number in international format, such as +919876543210."},
+    )
+
+
+class OtpVerifySerializer(OtpRequestSerializer):
+    code = serializers.RegexField(regex=r"^\d{6}$", max_length=6)
+
+
 class RouteSearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(required=False, allow_blank=False, max_length=100)
     origin_stop_id = serializers.CharField(required=False, max_length=50)
